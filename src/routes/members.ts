@@ -86,12 +86,18 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
     }
 
     const member = await db.get(
-      'SELECT user_id FROM playlist_members WHERE id = ? AND playlist_id = ?',
+      'SELECT user_id, role FROM playlist_members WHERE id = ? AND playlist_id = ?',
       [memberId, playlistId]
     );
 
     if (!member) {
       res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+
+    // Prevent moderator from removing an admin
+    if (membership.role === 'moderator' && member.role === 'admin') {
+      res.status(403).json({ error: 'Moderators cannot remove administrators' });
       return;
     }
 

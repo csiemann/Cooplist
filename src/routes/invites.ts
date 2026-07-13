@@ -33,7 +33,8 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
       [playlistId, token, role, userId, expiresAt.toISOString()]
     );
 
-    const inviteLink = `http://localhost:5173/join/${token}`;
+    const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
+    const inviteLink = `${frontendBaseUrl}/join/${token}`;
 
     res.json({
       invite_id: result.lastID,
@@ -84,11 +85,14 @@ router.post('/:playlistId/invite-email', authMiddleware, async (req: AuthRequest
     // TODO: Enviar email com link de convite
     // sendInviteEmail(email, token, playlist.name);
 
+    const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
+    const inviteLink = `${frontendBaseUrl}/join/${token}`;
+
     res.json({
       message: 'Invite sent successfully',
       invite_id: result.lastID,
       email,
-      invite_link: `http://localhost:5173/join/${token}`
+      invite_link: inviteLink
     });
   } catch (error) {
     console.error('Error creating email invite:', error);

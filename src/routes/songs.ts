@@ -14,15 +14,28 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
     const userId = req.user?.userId;
     const db = getDatabase();
 
-    // Verificar acesso
-    const membership = await db.get(
-      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+    // Verificar acesso - se o usuário não for membro, auto-join como usuário
+    let membership = await db.get(
+      'SELECT id, role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]
     );
 
     if (!membership) {
-      res.status(403).json({ error: 'Access denied' });
-      return;
+      // Check whether user exists and is banned
+      const userRow = await db.get('SELECT id, role, is_banned FROM users WHERE id = ?', userId);
+      if (!userRow) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+      if (userRow.is_banned) {
+        res.status(403).json({ error: 'This account has been banned' });
+        return;
+      }
+
+      // Auto-join: use user's global role if admin/moderator, otherwise 'user'
+      const joinRole = (userRow.role && ['admin', 'moderator'].includes(userRow.role)) ? userRow.role : 'user';
+      const insertRes = await db.run('INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)', [playlistId, userId, joinRole]);
+      membership = { id: insertRes.lastID, role: joinRole };
     }
 
     // Verificar limite
@@ -46,6 +59,11 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [playlistId, spotify_track_id, track_name, artist_name, track_duration_ms || 0, userId, priority || 0]
     );
+
+    // Ensure new song receives a proper position in the queue (append to end)
+    const maxPos = await db.get('SELECT MAX(position_in_queue) as maxPos FROM playlist_songs WHERE playlist_id = ?', playlistId);
+    const newPos = (maxPos?.maxPos || 0) + 1;
+    await db.run('UPDATE playlist_songs SET position_in_queue = ? WHERE id = ?', [newPos, result.lastID]);
 
     const song = await db.get('SELECT * FROM playlist_songs WHERE id = ?', result.lastID);
 

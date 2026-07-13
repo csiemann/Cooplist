@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getPlaylistDetails, getAnalytics, addSongToPlaylist, searchSpotify } from '../services/api';
+import { initSocket, joinPlaylistRoom, leavePlaylistRoom } from '../stores/playlistStore';
+import { useAuthStore } from '../stores/authStore';
 import PlaylistDetails from '../components/PlaylistDetails';
 import AnalyticsChart from '../components/AnalyticsChart';
 import { usePlaylistStore } from '../stores/playlistStore';
@@ -16,9 +18,18 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const { user } = useAuthStore();
   useEffect(() => {
+    initSocket();
+
     if (!selectedPlaylist) return;
+    // Join playlist room so socket events update UI in realtime
+    joinPlaylistRoom(selectedPlaylist.id, user?.id);
     loadPlaylistData();
+
+    return () => {
+      if (selectedPlaylist) leavePlaylistRoom(selectedPlaylist.id, user?.id);
+    };
   }, [selectedPlaylist]);
 
   const loadPlaylistData = async () => {

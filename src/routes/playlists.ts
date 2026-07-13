@@ -119,6 +119,8 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       [playlistId, userId]
     );
 
+    console.log(`playlist details request: playlistId=${playlistId} userId=${userId} membership=${JSON.stringify(membership)}`);
+
     if (!membership) {
       res.status(403).json({ error: 'Access denied' });
       return;
