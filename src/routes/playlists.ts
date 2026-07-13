@@ -25,18 +25,30 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Criar no Spotify
-    const spotifyPlaylist = await spotifyService.createPlaylist(
-      name,
-      description || ''
-    );
+    const currentUser = await db.get('SELECT role FROM users WHERE id = ?', userId);
+    if (!currentUser || !['admin', 'moderator'].includes(currentUser.role)) {
+      res.status(403).json({ error: 'Only admins and moderators can create playlists' });
+      return;
+    }
+
+    // Criar no Spotify ou fallback local
+    let spotifyPlaylistId: string | null = null;
+    let spotifyUrl: string | null = null;
+
+    try {
+      const spotifyPlaylist = await spotifyService.createPlaylist(name, description || '');
+      spotifyPlaylistId = spotifyPlaylist.id;
+      spotifyUrl = spotifyPlaylist.external_urls?.spotify || null;
+    } catch (error) {
+      console.warn('Failed to create Spotify playlist, continuing with local playlist only:', error);
+    }
 
     // Salvar no BD
     const result = await db.run(
       `INSERT INTO playlists 
        (spotify_id, name, description, created_by, max_songs_per_user, duration_hours)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [spotifyPlaylist.id, name, description || null, userId, max_songs_per_user || null, duration_hours || null]
+      [spotifyPlaylistId, name, description || null, userId, max_songs_per_user || null, duration_hours || null]
     );
 
     const playlistId = result.lastID || 0;
@@ -57,10 +69,10 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
       message: 'Playlist created successfully',
       playlist: {
         id: playlistId,
-        spotify_id: spotifyPlaylist.id,
+        spotify_id: spotifyPlaylistId,
         name,
         description,
-        spotify_url: spotifyPlaylist.external_urls.spotify
+        spotify_url: spotifyUrl
       }
     });
   } catch (error) {

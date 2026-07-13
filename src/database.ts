@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 
 let db: Database | null = null;
 
@@ -21,9 +22,42 @@ export async function initDatabase(): Promise<Database> {
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      is_banned INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Ensure legacy databases have the 'role' and 'is_banned' columns
+  await db.exec(`
+    ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'
+  `).catch(() => {});
+
+  await db.exec(`
+    ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0
+  `).catch(() => {});
+
+  // Seed test users if they do not already exist
+  const adminEmail = 'admin@admin.com';
+  const moderatorEmail = 'moderador@moderador.com';
+
+  const adminExists = await db.get('SELECT id FROM users WHERE email = ?', adminEmail);
+  if (!adminExists) {
+    const passwordHash = await bcrypt.hash('admin1', 10);
+    await db.run(
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      [adminEmail, passwordHash, 'Admin', 'admin']
+    );
+  }
+
+  const moderatorExists = await db.get('SELECT id FROM users WHERE email = ?', moderatorEmail);
+  if (!moderatorExists) {
+    const passwordHash = await bcrypt.hash('moderador', 10);
+    await db.run(
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      [moderatorEmail, passwordHash, 'Moderador', 'moderator']
+    );
+  }
 
   // Playlists
   await db.exec(`

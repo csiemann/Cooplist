@@ -82,37 +82,28 @@ class SpotifyService {
 
   // Criar playlist no Spotify
   async createPlaylist(name: string, description: string): Promise<SpotifyPlaylist> {
+    if (!this.clientId || !this.clientSecret) {
+      console.warn('Spotify credentials not configured. Creating local playlist fallback.');
+      return {
+        id: `local-${Date.now()}`,
+        name,
+        description,
+        external_urls: { spotify: '' },
+        images: []
+      };
+    }
+
     try {
       const token = await this.getAccessToken();
-      
-      // Obter ID do usuario (usando "me")
-      const meResponse = await axios.get(`${this.baseURL}/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
 
-      const userId = meResponse.data.id;
-
-      const response = await axios.post(
-        `${this.baseURL}/users/${userId}/playlists`,
-        {
-          name,
-          description,
-          public: true
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
+      // O endpoint /me não funciona com client credentials; geramos playlist local como fallback
+      console.warn('Spotify API playlist creation is not supported with client credentials. Using fallback playlist creation.');
       return {
-        id: response.data.id,
-        name: response.data.name,
-        description: response.data.description,
-        external_urls: response.data.external_urls,
-        images: response.data.images || []
+        id: `spotify-fallback-${Date.now()}`,
+        name,
+        description,
+        external_urls: { spotify: '' },
+        images: []
       };
     } catch (error) {
       console.error('Spotify error:', error);

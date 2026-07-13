@@ -52,7 +52,7 @@ router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Resp
     res.status(201).json({
       message: 'User registered successfully',
       token,
-      user: { id: userId, email, name }
+      user: { id: userId, email, name, role: 'user' }
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -65,6 +65,8 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response):
   try {
     const { email, password } = req.body;
 
+    console.log('Login request for email:', email);
+
     if (!email || !password) {
       res.status(400).json({ error: 'Missing email or password' });
       return;
@@ -72,9 +74,11 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response):
 
     const db = getDatabase();
     const user = await db.get(
-      'SELECT id, email, password, name, is_banned FROM users WHERE email = ?',
+      'SELECT id, email, password, name, role, is_banned FROM users WHERE email = ?',
       email
     );
+
+    console.log('Login user found:', !!user, user ? user.email : null);
 
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -98,7 +102,7 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response):
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: { id: user.id, email: user.email, name: user.name, role: user.role }
     });
   } catch (error) {
     console.error('Login error:', error);
