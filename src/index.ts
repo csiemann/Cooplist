@@ -1,44 +1,80 @@
 import express, { Request, Response } from 'express';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import path from 'path';
-import { initDatabase } from './database';
+import { initDatabase, getDatabase } from './database';
+import { authMiddleware } from './middleware/authMiddleware';
 import authRoutes from './routes/auth';
 import playlistRoutes from './routes/playlists';
+import inviteRoutes from './routes/invites';
 import songsRoutes from './routes/songs';
 import membersRoutes from './routes/members';
+import analyticsRoutes from './routes/analytics';
 import searchRoutes from './routes/search';
-import favoritesRoutes from './routes/favorites';
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Socket.io
+export const io = new SocketIOServer(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] }
+});
 
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
 
-// Inicializar banco de dados
+// Inicializar BD
 initDatabase().catch(error => {
   console.error('Failed to initialize database:', error);
   process.exit(1);
 });
 
-// Rotas da API
+// Rotas
 app.use('/api/auth', authRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/playlists', inviteRoutes);
 app.use('/api/playlists', songsRoutes);
 app.use('/api/playlists', membersRoutes);
+app.use('/api/playlists', analyticsRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/favorites', favoritesRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response): void => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '2.0.0'
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// WebSocket
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  // Join playlist room
+  socket.on('join_playlist', (playlistId: string, userId: number) => {
+    socket.join(`playlist:${playlistId}`);
+    socket.broadcast.to(`playlist:${playlistId}`).emit('user_joined', {
+      userId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Leave playlist room
+  socket.on('leave_playlist', (playlistId: string, userId: number) => {
+    socket.leave(`playlist:${playlistId}`);
+    socket.broadcast.to(`playlist:${playlistId}`).emit('user_left', { userId });
+  });
+
+  // Notificacoes em tempo real
+  socket.on('queue_update', (playlistId: string, data: any) => {
+    io.to(`playlist:${playlistId}`).emit('queue_updated', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
   });
 });
 
-// Frontend - Pagina de Login
+// Frontend - Login page
 app.get('/', (req: Request, res: Response): void => {
   res.send(`
     <!DOCTYPE html>
@@ -46,12 +82,12 @@ app.get('/', (req: Request, res: Response): void => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Cooplist - Music Collaboration</title>
+      <title>Cooplist - Spotify Playlist Manager</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1DB954 0%, #191414 100%);
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -71,22 +107,22 @@ app.get('/', (req: Request, res: Response): void => {
           }
         }
         .form-section {
-          background: white;
+          background: #282828;
           border-radius: 15px;
           padding: 40px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          box-shadow: 0 10px 40px rgba(0,0,0,0.4);
         }
         h1 {
-          color: #333;
+          color: #1DB954;
           margin-bottom: 30px;
           text-align: center;
           font-size: 28px;
         }
         h2 {
-          color: #667eea;
+          color: #1DB954;
           margin-bottom: 20px;
           font-size: 18px;
-          border-bottom: 2px solid #667eea;
+          border-bottom: 2px solid #1DB954;
           padding-bottom: 10px;
         }
         .form-group {
@@ -95,40 +131,43 @@ app.get('/', (req: Request, res: Response): void => {
         label {
           display: block;
           margin-bottom: 5px;
-          color: #333;
+          color: #fff;
           font-weight: 500;
           font-size: 14px;
         }
         input {
           width: 100%;
           padding: 12px;
-          border: 1px solid #ddd;
+          border: 1px solid #404040;
           border-radius: 5px;
+          background: #404040;
+          color: #fff;
           font-size: 14px;
-          transition: border-color 0.3s;
+        }
+        input::placeholder {
+          color: #b3b3b3;
         }
         input:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: #1DB954;
+          background: #464646;
         }
         button {
           width: 100%;
           padding: 12px;
-          background: #667eea;
-          color: white;
+          background: #1DB954;
+          color: #000;
           border: none;
-          border-radius: 5px;
+          border-radius: 25px;
           font-size: 16px;
+          font-weight: 600;
           cursor: pointer;
           transition: all 0.3s;
           margin-top: 10px;
-          font-weight: 600;
         }
         button:hover {
-          background: #764ba2;
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+          background: #1ed760;
+          transform: scale(1.02);
         }
         .message {
           margin-top: 15px;
@@ -139,30 +178,30 @@ app.get('/', (req: Request, res: Response): void => {
           display: none;
         }
         .message.success {
-          background: #d4edda;
-          color: #155724;
+          background: rgba(29, 185, 84, 0.2);
+          color: #1DB954;
           display: block;
         }
         .message.error {
-          background: #f8d7da;
-          color: #721c24;
+          background: rgba(255, 0, 0, 0.2);
+          color: #ff4444;
           display: block;
         }
         .divider {
           text-align: center;
           margin: 20px 0;
-          color: #999;
+          color: #b3b3b3;
           font-size: 14px;
         }
         .info-section {
-          background: white;
+          background: #282828;
           border-radius: 15px;
           padding: 40px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-          color: #333;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+          color: #fff;
         }
         .info-section h2 {
-          color: #667eea;
+          color: #1DB954;
           margin-bottom: 20px;
           border: none;
           padding: 0;
@@ -172,7 +211,7 @@ app.get('/', (req: Request, res: Response): void => {
         }
         .feature-list li {
           padding: 12px 0;
-          border-bottom: 1px solid #eee;
+          border-bottom: 1px solid #404040;
           display: flex;
           align-items: center;
           gap: 10px;
@@ -197,21 +236,21 @@ app.get('/', (req: Request, res: Response): void => {
     <body>
       <div class="container">
         <div class="form-section">
-          <h1>Music Cooplist</h1>
+          <h1>Cooplist</h1>
           
           <h2>Registrar</h2>
           <form id="registerForm">
             <div class="form-group">
               <label for="regName">Nome</label>
-              <input type="text" id="regName" required>
+              <input type="text" id="regName" placeholder="Seu nome completo" required>
             </div>
             <div class="form-group">
               <label for="regEmail">Email</label>
-              <input type="email" id="regEmail" required>
+              <input type="email" id="regEmail" placeholder="seu@email.com" required>
             </div>
             <div class="form-group">
               <label for="regPassword">Senha</label>
-              <input type="password" id="regPassword" required>
+              <input type="password" id="regPassword" placeholder="Minimo 6 caracteres" required>
             </div>
             <button type="submit">Criar Conta</button>
           </form>
@@ -219,15 +258,15 @@ app.get('/', (req: Request, res: Response): void => {
 
           <div class="divider">--- ou ---</div>
 
-          <h2>Fazer Login</h2>
+          <h2>Login</h2>
           <form id="loginForm">
             <div class="form-group">
               <label for="loginEmail">Email</label>
-              <input type="email" id="loginEmail" required>
+              <input type="email" id="loginEmail" placeholder="seu@email.com" required>
             </div>
             <div class="form-group">
               <label for="loginPassword">Senha</label>
-              <input type="password" id="loginPassword" required>
+              <input type="password" id="loginPassword" placeholder="Sua senha" required>
             </div>
             <button type="submit">Entrar</button>
           </form>
@@ -235,30 +274,23 @@ app.get('/', (req: Request, res: Response): void => {
         </div>
 
         <div class="info-section">
-          <h2>Bem-vindo ao Cooplist!</h2>
-          <p>Plataforma colaborativa para criar playlists musicais em grupo.</p>
+          <h2>Bem-vindo ao Cooplist</h2>
+          <p>Crie e gerencie playlists colaborativas no Spotify com sua equipe.</p>
           
-          <h2 class="section-title">Recursos Principais</h2>
+          <h2 class="section-title">Recursos</h2>
           <ul class="feature-list">
-            <li>Criar e gerenciar playlists colaborativas</li>
+            <li>Criar playlists no Spotify</li>
+            <li>Adicionar musicas da API Spotify</li>
+            <li>Convites por email e link</li>
             <li>Controle de acesso (Admin, Moderador, Utilizador)</li>
-            <li>Buscar musicas diretamente do Spotify</li>
-            <li>Lista de favoritos pessoal</li>
-            <li>Sistema de prioridade na fila</li>
-            <li>Sorteio automatico (1 musica/utilizador)</li>
-            <li>Limite de musicas por utilizador</li>
-            <li>Gerenciamento de utilizadores e bans</li>
+            <li>Fila de reproducao inteligente</li>
+            <li>Analytics em tempo real</li>
+            <li>Sincronizacao automatica com Spotify</li>
+            <li>Favoritos pessoais</li>
           </ul>
 
-          <h2 class="section-title">Cargos e Permissoes</h2>
-          <ul class="feature-list">
-            <li>Admin: Gerencia tudo na playlist</li>
-            <li>Moderador: Gerencia conteudo e utilizadores limitados</li>
-            <li>Utilizador Comum: Adiciona musicas</li>
-          </ul>
-
-          <p style="margin-top: 25px; font-size: 12px; color: #999;">
-            2024 Cooplist - Desenvolvido com TypeScript e Spotify API
+          <p style="margin-top: 25px; font-size: 12px; color: #b3b3b3;">
+            Desenvolvido com TypeScript, Express, React e Spotify API
           </p>
         </div>
       </div>
@@ -291,7 +323,7 @@ app.get('/', (req: Request, res: Response): void => {
               setTimeout(() => window.location.href = '/dashboard', 1500);
             } else {
               messageDiv.className = 'message error';
-              messageDiv.textContent = 'Erro: ' + (data.error || 'Erro ao registrar');
+              messageDiv.textContent = 'Erro: ' + (data.error || 'Falha ao registrar');
             }
           } catch (error) {
             messageDiv.className = 'message error';
@@ -336,8 +368,19 @@ app.get('/', (req: Request, res: Response): void => {
   `);
 });
 
-app.listen(PORT, (): void => {
-  console.log('COOPLIST API v2.0 - Iniciado');
-  console.log('Servidor rodando na porta ' + PORT);
-  console.log('Acesse: http://localhost:' + PORT);
+server.listen(PORT, (): void => {
+  console.log('');
+  console.log('==============================================');
+  console.log('  COOPLIST v2.1 - Spotify Playlist Manager');
+  console.log('  Server running on port ' + PORT);
+  console.log('  Access: http://localhost:' + PORT);
+  console.log('==============================================');
+  console.log('');
+  console.log('Features:');
+  console.log('  - Create/manage Spotify playlists');
+  console.log('  - Invite members (email & links)');
+  console.log('  - Real-time updates (WebSocket)');
+  console.log('  - Analytics dashboard');
+  console.log('  - Smart queue system');
+  console.log('');
 });
