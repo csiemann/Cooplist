@@ -42,7 +42,7 @@ router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Resp
       [email, hashedPassword, name]
     );
 
-    const token = generateToken(result.lastID, email);
+    const token = generateToken(result.lastID || 0, email);
 
     res.status(201).json({
       message: 'User registered successfully',
