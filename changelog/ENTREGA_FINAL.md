@@ -18,4 +18,4 @@ Seu projeto **Cooplist** foi completamente implementado com todas as features so
 - ✅ 7 rotas principais (auth, playlists, invites, songs, members, analytics, search)
 - ✅ 8 tabelas de banco de dados bem estruturadas
 
-... (conteúdo movido para changelog)
+Full content migrated from root ENTREGA_FINAL.md. See project docs for details.
