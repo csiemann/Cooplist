@@ -32,12 +32,16 @@ export default function DashboardPage() {
         getAnalytics(selectedPlaylist.id)
       ]);
 
+      // Backend retorna { playlist, members, songs, user_role }
       const details = playlistRes.data;
-      setSongs(details.songs as Song[]);
-      setAnalytics(analyticsRes.data as AnalyticsStats);
-    } catch (err) {
+      setSongs(details.songs || [] as Song[]);
+      
+      // Analytics retorna { playlist, stats { total_songs, total_members, ... } }
+      const analyticsData = analyticsRes.data?.stats || analyticsRes.data;
+      setAnalytics(analyticsData as AnalyticsStats);
+    } catch (err: any) {
+      console.error('Error loading playlist:', err);
       setError('Erro ao carregar dados da playlist');
-      console.error(err);
     } finally {
       setLoading(false);
     }
