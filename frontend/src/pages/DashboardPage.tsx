@@ -12,30 +12,47 @@ export default function DashboardPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [addingTrack, setAddingTrack] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (!selectedPlaylist) return;
-    setLoading(true);
+    loadPlaylistData();
+  }, [selectedPlaylist]);
 
-    Promise.all([getPlaylistDetails(selectedPlaylist.id), getAnalytics(selectedPlaylist.id)])
-      .then(([playlistRes, analyticsRes]) => {
-        const details = playlistRes.data;
-        setSongs(details.songs as Song[]);
-        setAnalytics(analyticsRes.data as AnalyticsStats);
-      })
-      .catch(() => {
-        setAnalytics(null);
-      })
-      .finally(() => setLoading(false));
-  }, [selectedPlaylist, setSongs]);
+  const loadPlaylistData = async () => {
+    if (!selectedPlaylist) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const [playlistRes, analyticsRes] = await Promise.all([
+        getPlaylistDetails(selectedPlaylist.id),
+        getAnalytics(selectedPlaylist.id)
+      ]);
+
+      const details = playlistRes.data;
+      setSongs(details.songs as Song[]);
+      setAnalytics(analyticsRes.data as AnalyticsStats);
+    } catch (err) {
+      setError('Erro ao carregar dados da playlist');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     setSearchLoading(true);
+    setError('');
+
     try {
       const res = await searchSpotify(query, 8);
       setSearchResults(res.data.results || []);
-    } catch {
+    } catch (err) {
+      setError('Erro ao buscar músicas');
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
@@ -44,15 +61,31 @@ export default function DashboardPage() {
 
   const handleAddSong = async (track: any) => {
     if (!selectedPlaylist) return;
-    await addSongToPlaylist(selectedPlaylist.id, {
-      spotify_track_id: track.id,
-      track_name: track.name,
-      artist_name: track.artist,
-      track_duration_ms: 0,
-      priority: 0,
-    });
-    const res = await getPlaylistDetails(selectedPlaylist.id);
-    setSongs(res.data.songs as Song[]);
+
+    setAddingTrack(track.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      await addSongToPlaylist(selectedPlaylist.id, {
+        spotify_track_id: track.id,
+        track_name: track.name,
+        artist_name: track.artist,
+        track_duration_ms: track.duration_ms || 0,
+        priority: 0,
+      });
+
+      // Recarregar dados da playlist para sincronizar
+      await loadPlaylistData();
+      setSuccess(`"${track.name}" adicionada à playlist`);
+
+      // Limpar sucesso após 3 segundos
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Erro ao adicionar música');
+    } finally {
+      setAddingTrack(null);
+    }
   };
 
   if (!selectedPlaylist) {
@@ -61,7 +94,18 @@ export default function DashboardPage() {
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {error && (
+        <div style={{ background: '#632a2a', border: '1px solid #ff7a7a', color: '#ff7a7a', padding: '12px', borderRadius: '8px' }}>
+          {error}
+        </div>
+      )}
+      {success && (
+        <div style={{ background: '#1a472b', border: '1px solid #63d3ff', color: '#63d3ff', padding: '12px', borderRadius: '8px' }}>
+          ✓ {success}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
         <div>
           <div style={{ color: '#63d3ff', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Playlist selecionada</div>
           <h2 style={{ margin: '4px 0' }}>{selectedPlaylist.name}</h2>
@@ -91,11 +135,18 @@ export default function DashboardPage() {
             <div style={{ color: '#9fb0c3' }}>Carregando...</div>
           ) : songs.length ? (
             <div style={{ display: 'grid', gap: '10px' }}>
-              {songs.map((song) => (
+              {songs.map((song, index) => (
                 <div key={song.id} style={{ padding: '14px', borderRadius: '12px', background: '#111c2b', border: '1px solid #223449' }}>
-                  <div style={{ fontWeight: 700 }}>{song.track_name}</div>
-                  <div style={{ color: '#9fb0c3', fontSize: '13px', marginTop: '4px' }}>
-                    {song.artist_name || 'Artista desconhecido'} • {song.added_by_name || 'Usuário'}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ background: '#1db954', color: 'black', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, minWidth: '24px', textAlign: 'center' }}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{song.track_name}</div>
+                      <div style={{ color: '#9fb0c3', fontSize: '13px', marginTop: '4px' }}>
+                        {song.artist_name || 'Artista desconhecido'} • {song.added_by_name || 'Usuário'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -123,12 +174,14 @@ export default function DashboardPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar música"
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Buscar música, artista..."
             style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #223449', background: '#111c2b', color: 'white' }}
           />
           <button
             onClick={handleSearch}
-            style={{ padding: '12px 16px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer' }}
+            disabled={searchLoading}
+            style={{ padding: '12px 16px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer', opacity: searchLoading ? 0.6 : 1 }}
           >
             {searchLoading ? 'Buscando...' : 'Buscar'}
           </button>
@@ -140,15 +193,16 @@ export default function DashboardPage() {
                 key={track.id}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '12px', background: '#111c2b', border: '1px solid #223449' }}
               >
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700 }}>{track.name}</div>
                   <div style={{ color: '#9fb0c3', fontSize: '13px' }}>{track.artist || track.artists?.join(', ') || 'Artista desconhecido'}</div>
                 </div>
                 <button
                   onClick={() => handleAddSong(track)}
-                  style={{ padding: '10px 14px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer' }}
+                  disabled={addingTrack === track.id}
+                  style={{ padding: '10px 14px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer', opacity: addingTrack === track.id ? 0.6 : 1, marginLeft: '10px', flexShrink: 0 }}
                 >
-                  Adicionar
+                  {addingTrack === track.id ? 'Adicionando...' : 'Adicionar'}
                 </button>
               </div>
             ))}
