@@ -3,7 +3,10 @@ import path from 'path';
 import { initDatabase } from './database';
 import authRoutes from './routes/auth';
 import playlistRoutes from './routes/playlists';
+import songsRoutes from './routes/songs';
+import membersRoutes from './routes/members';
 import searchRoutes from './routes/search';
+import favoritesRoutes from './routes/favorites';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,18 +24,21 @@ initDatabase().catch(error => {
 // Rotas da API
 app.use('/api/auth', authRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/playlists', songsRoutes);
+app.use('/api/playlists', membersRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/favorites', favoritesRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response): void => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '2.0.0'
   });
 });
 
-// Frontend - Página de Login
+// Frontend - Pagina de Login
 app.get('/', (req: Request, res: Response): void => {
   res.send(`
     <!DOCTYPE html>
@@ -56,7 +62,7 @@ app.get('/', (req: Request, res: Response): void => {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 40px;
-          max-width: 900px;
+          max-width: 1000px;
           width: 100%;
         }
         @media (max-width: 768px) {
@@ -74,12 +80,12 @@ app.get('/', (req: Request, res: Response): void => {
           color: #333;
           margin-bottom: 30px;
           text-align: center;
-          font-size: 24px;
+          font-size: 28px;
         }
         h2 {
           color: #667eea;
           margin-bottom: 20px;
-          font-size: 20px;
+          font-size: 18px;
           border-bottom: 2px solid #667eea;
           padding-bottom: 10px;
         }
@@ -91,10 +97,11 @@ app.get('/', (req: Request, res: Response): void => {
           margin-bottom: 5px;
           color: #333;
           font-weight: 500;
+          font-size: 14px;
         }
         input {
           width: 100%;
-          padding: 10px 15px;
+          padding: 12px;
           border: 1px solid #ddd;
           border-radius: 5px;
           font-size: 14px;
@@ -116,25 +123,16 @@ app.get('/', (req: Request, res: Response): void => {
           cursor: pointer;
           transition: all 0.3s;
           margin-top: 10px;
+          font-weight: 600;
         }
         button:hover {
           background: #764ba2;
           transform: translateY(-2px);
           box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
-        .spotify-btn {
-          background: #1DB954;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-        }
-        .spotify-btn:hover {
-          background: #1ed760;
-        }
         .message {
           margin-top: 15px;
-          padding: 10px;
+          padding: 12px;
           border-radius: 5px;
           text-align: center;
           font-size: 14px;
@@ -154,6 +152,7 @@ app.get('/', (req: Request, res: Response): void => {
           text-align: center;
           margin: 20px 0;
           color: #999;
+          font-size: 14px;
         }
         .info-section {
           background: white;
@@ -177,22 +176,28 @@ app.get('/', (req: Request, res: Response): void => {
           display: flex;
           align-items: center;
           gap: 10px;
+          font-size: 14px;
         }
         .feature-list li:last-child {
           border: none;
         }
         .feature-list li::before {
-          content: "✓";
+          content: "*";
           color: #1DB954;
           font-weight: bold;
           font-size: 18px;
+          flex-shrink: 0;
+        }
+        .section-title {
+          margin-top: 25px;
+          margin-bottom: 15px;
         }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="form-section">
-          <h1>🎵 Cooplist</h1>
+          <h1>Music Cooplist</h1>
           
           <h2>Registrar</h2>
           <form id="registerForm">
@@ -212,7 +217,7 @@ app.get('/', (req: Request, res: Response): void => {
           </form>
           <div id="registerMessage" class="message"></div>
 
-          <div class="divider">ou</div>
+          <div class="divider">--- ou ---</div>
 
           <h2>Fazer Login</h2>
           <form id="loginForm">
@@ -224,31 +229,36 @@ app.get('/', (req: Request, res: Response): void => {
               <label for="loginPassword">Senha</label>
               <input type="password" id="loginPassword" required>
             </div>
-            <button type="submit">Fazer Login</button>
+            <button type="submit">Entrar</button>
           </form>
           <div id="loginMessage" class="message"></div>
-
-          <button class="spotify-btn" onclick="loginWithSpotify()">
-            🎵 Login com Spotify
-          </button>
         </div>
 
         <div class="info-section">
           <h2>Bem-vindo ao Cooplist!</h2>
-          <p>Plataforma colaborativa para criar e compartilhar playlists Spotify com seus amigos.</p>
+          <p>Plataforma colaborativa para criar playlists musicais em grupo.</p>
           
-          <h2 style="margin-top: 30px;">Recursos</h2>
+          <h2 class="section-title">Recursos Principais</h2>
           <ul class="feature-list">
-            <li>Crie playlists colaborativas</li>
-            <li>Compartilhe com amigos e colegas</li>
-            <li>Sincronize com Spotify</li>
-            <li>Adicione músicas em tempo real</li>
-            <li>Controle de acesso por colaborador</li>
-            <li>Interface moderna e intuitiva</li>
+            <li>Criar e gerenciar playlists colaborativas</li>
+            <li>Controle de acesso (Admin, Moderador, Utilizador)</li>
+            <li>Buscar musicas diretamente do Spotify</li>
+            <li>Lista de favoritos pessoal</li>
+            <li>Sistema de prioridade na fila</li>
+            <li>Sorteio automatico (1 musica/utilizador)</li>
+            <li>Limite de musicas por utilizador</li>
+            <li>Gerenciamento de utilizadores e bans</li>
           </ul>
 
-          <p style="margin-top: 30px; font-size: 13px; color: #999;">
-            Desenvolvido com TypeScript, Express e Spotify API
+          <h2 class="section-title">Cargos e Permissoes</h2>
+          <ul class="feature-list">
+            <li>Admin: Gerencia tudo na playlist</li>
+            <li>Moderador: Gerencia conteudo e utilizadores limitados</li>
+            <li>Utilizador Comum: Adiciona musicas</li>
+          </ul>
+
+          <p style="margin-top: 25px; font-size: 12px; color: #999;">
+            2024 Cooplist - Desenvolvido com TypeScript e Spotify API
           </p>
         </div>
       </div>
@@ -261,7 +271,7 @@ app.get('/', (req: Request, res: Response): void => {
           const messageDiv = document.getElementById('registerMessage');
           
           try {
-            const response = await fetch(\`\${API_BASE}/auth/register\`, {
+            const response = await fetch(API_BASE + '/auth/register', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -275,16 +285,17 @@ app.get('/', (req: Request, res: Response): void => {
 
             if (response.ok) {
               localStorage.setItem('token', data.token);
+              localStorage.setItem('user', JSON.stringify(data.user));
               messageDiv.className = 'message success';
-              messageDiv.textContent = '✓ Conta criada! Redirecionando...';
-              setTimeout(() => window.location.href = '/dashboard', 2000);
+              messageDiv.textContent = 'Conta criada! Redirecionando...';
+              setTimeout(() => window.location.href = '/dashboard', 1500);
             } else {
               messageDiv.className = 'message error';
-              messageDiv.textContent = '✗ ' + (data.error || 'Erro ao registrar');
+              messageDiv.textContent = 'Erro: ' + (data.error || 'Erro ao registrar');
             }
           } catch (error) {
             messageDiv.className = 'message error';
-            messageDiv.textContent = '✗ Erro de conexão';
+            messageDiv.textContent = 'Erro de conexao';
           }
         });
 
@@ -293,7 +304,7 @@ app.get('/', (req: Request, res: Response): void => {
           const messageDiv = document.getElementById('loginMessage');
           
           try {
-            const response = await fetch(\`\${API_BASE}/auth/login\`, {
+            const response = await fetch(API_BASE + '/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -306,116 +317,19 @@ app.get('/', (req: Request, res: Response): void => {
 
             if (response.ok) {
               localStorage.setItem('token', data.token);
+              localStorage.setItem('user', JSON.stringify(data.user));
               messageDiv.className = 'message success';
-              messageDiv.textContent = '✓ Login realizado! Redirecionando...';
-              setTimeout(() => window.location.href = '/dashboard', 2000);
+              messageDiv.textContent = 'Login realizado! Redirecionando...';
+              setTimeout(() => window.location.href = '/dashboard', 1500);
             } else {
               messageDiv.className = 'message error';
-              messageDiv.textContent = '✗ ' + (data.error || 'Credenciais inválidas');
+              messageDiv.textContent = 'Erro: ' + (data.error || 'Credenciais invalidas');
             }
           } catch (error) {
             messageDiv.className = 'message error';
-            messageDiv.textContent = '✗ Erro de conexão';
+            messageDiv.textContent = 'Erro de conexao';
           }
         });
-
-        function loginWithSpotify() {
-          window.location.href = \`\${API_BASE}/auth/spotify\`;
-        }
-      </script>
-    </body>
-    </html>
-  `);
-});
-
-// Dashboard (placeholder)
-app.get('/dashboard', (req: Request, res: Response): void => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Dashboard - Cooplist</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: #f5f5f5;
-          padding: 20px;
-        }
-        .navbar {
-          background: white;
-          padding: 15px 20px;
-          border-radius: 5px;
-          margin-bottom: 20px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .navbar h1 {
-          color: #667eea;
-        }
-        button {
-          padding: 10px 20px;
-          background: #667eea;
-          color: white;
-          border: none;
-          border-radius: 5px;
-          cursor: pointer;
-        }
-        button:hover {
-          background: #764ba2;
-        }
-        .container {
-          background: white;
-          padding: 30px;
-          border-radius: 10px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .loading {
-          text-align: center;
-          color: #667eea;
-          font-size: 18px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="navbar">
-        <h1>🎵 Cooplist Dashboard</h1>
-        <button onclick="logout()">Sair</button>
-      </div>
-      <div class="container">
-        <div class="loading">Carregando playlists...</div>
-      </div>
-
-      <script>
-        const API_BASE = 'http://localhost:3000/api';
-        const token = localStorage.getItem('token');
-
-        if (!token) {
-          window.location.href = '/';
-        }
-
-        async function loadPlaylists() {
-          try {
-            const response = await fetch(\`\${API_BASE}/playlists\`, {
-              headers: { 'Authorization': \`Bearer \${token}\` }
-            });
-            const playlists = await response.json();
-            document.querySelector('.container').innerHTML = 
-              '<p>' + JSON.stringify(playlists, null, 2) + '</p>';
-          } catch (error) {
-            document.querySelector('.container').innerHTML = '<p>Erro ao carregar</p>';
-          }
-        }
-
-        function logout() {
-          localStorage.removeItem('token');
-          window.location.href = '/';
-        }
-
-        loadPlaylists();
       </script>
     </body>
     </html>
@@ -423,12 +337,7 @@ app.get('/dashboard', (req: Request, res: Response): void => {
 });
 
 app.listen(PORT, (): void => {
-  console.log(`🎵 Cooplist API running on http://localhost:${PORT}`);
-  console.log(`\nEndpoints:`);
-  console.log(`  GET  http://localhost:${PORT}/`);
-  console.log(`  POST http://localhost:${PORT}/api/auth/register`);
-  console.log(`  POST http://localhost:${PORT}/api/auth/login`);
-  console.log(`  GET  http://localhost:${PORT}/api/auth/spotify`);
-  console.log(`  GET  http://localhost:${PORT}/api/playlists`);
-  console.log(`  GET  http://localhost:${PORT}/api/health`);
+  console.log('COOPLIST API v2.0 - Iniciado');
+  console.log('Servidor rodando na porta ' + PORT);
+  console.log('Acesse: http://localhost:' + PORT);
 });

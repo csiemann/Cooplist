@@ -1,47 +1,46 @@
 import express, { Router, Response } from 'express';
 import { getDatabase } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
-import spotifyService from '../services/spotifyService';
 
 const router = Router();
 
-interface Playlist {
-  id: number;
-  name: string;
-  description: string;
-  owner_id: number;
-  created_at: string;
-}
-
-interface PlaylistCreateRequest {
+interface CreatePlaylistRequest {
   name: string;
   description?: string;
-  syncSpotify?: boolean;
+  max_songs_per_user?: number;
+  duration_hours?: number;
 }
 
-// CRUD: Listar todas as playlists do usuário
+// CRUD: Listar playlists do usuário (como membro)
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const db = getDatabase();
+    const userId = req.user?.userId;
+
     const playlists = await db.all(
-      `SELECT p.* FROM playlists p 
-       WHERE p.owner_id = ? OR p.id IN (
-         SELECT playlist_id FROM playlist_collaborators WHERE user_id = ?
-       )
+      `SELECT p.*, 
+              (SELECT COUNT(*) FROM playlist_members WHERE playlist_id = p.id) as member_count,
+              (SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = p.id) as song_count,
+              pm.role
+       FROM playlists p
+       JOIN playlist_members pm ON p.id = pm.playlist_id
+       WHERE pm.user_id = ? AND pm.is_banned = 0
        ORDER BY p.created_at DESC`,
-      [req.user?.userId, req.user?.userId]
+      userId
     );
 
     res.json(playlists);
   } catch (error) {
+    console.error('Error fetching playlists:', error);
     res.status(500).json({ error: 'Failed to fetch playlists' });
   }
 });
 
-// CRUD: Criar nova playlist
+// CRUD: Criar nova playlist (apenas admin/moderator)
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, description, syncSpotify } = req.body as PlaylistCreateRequest;
+    const { name, description, max_songs_per_user, duration_hours } = req.body as CreatePlaylistRequest;
+    const userId = req.user?.userId;
 
     if (!name) {
       res.status(400).json({ error: 'Playlist name is required' });
@@ -49,39 +48,51 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
     }
 
     const db = getDatabase();
-    let spotifyPlaylistId = null;
 
-    // Sincronizar com Spotify se solicitado
-    if (syncSpotify) {
-      const user = await db.get('SELECT spotify_id FROM users WHERE id = ?', req.user?.userId);
-      if (user?.spotify_id) {
-        // Aqui você usaria o token de acesso armazenado
-        // const spotifyPlaylist = await spotifyService.createPlaylist(user.spotify_id, name, description || '', token);
-        // spotifyPlaylistId = spotifyPlaylist.id;
-      }
-    }
-
-    const result = await db.run(
-      'INSERT INTO playlists (owner_id, name, description, spotify_playlist_id) VALUES (?, ?, ?, ?)',
-      [req.user?.userId, name, description || null, spotifyPlaylistId]
+    // Criar playlist
+    const playlistResult = await db.run(
+      `INSERT INTO playlists (name, description, created_by, max_songs_per_user, duration_hours) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [name, description || null, userId, max_songs_per_user || null, duration_hours || null]
     );
 
-    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', result.lastID);
+    const playlistId = playlistResult.lastID || 0;
+
+    // Adicionar criador como admin
+    await db.run(
+      'INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)',
+      [playlistId, userId, 'admin']
+    );
+
+    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
 
     res.status(201).json({
       message: 'Playlist created successfully',
       playlist
     });
   } catch (error) {
+    console.error('Error creating playlist:', error);
     res.status(500).json({ error: 'Failed to create playlist' });
   }
 });
 
-// CRUD: Obter detalhes de uma playlist
+// Obter detalhes de uma playlist
 router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
+    const userId = req.user?.userId;
     const db = getDatabase();
+
+    // Verificar se usuário é membro e não está banido
+    const membership = await db.get(
+      'SELECT role, is_banned FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || membership.is_banned) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
 
     const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
 
@@ -90,64 +101,60 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       return;
     }
 
-    // Verificar permissão
-    if (playlist.owner_id !== req.user?.userId) {
-      const isCollaborator = await db.get(
-        'SELECT id FROM playlist_collaborators WHERE playlist_id = ? AND user_id = ?',
-        [playlistId, req.user?.userId]
-      );
-
-      if (!isCollaborator) {
-        res.status(403).json({ error: 'Access denied' });
-        return;
-      }
-    }
-
-    const songs = await db.all(
-      `SELECT ps.*, u.name as added_by_name FROM playlist_songs ps
-       JOIN users u ON ps.added_by = u.id
-       WHERE ps.playlist_id = ?
-       ORDER BY ps.added_at DESC`,
+    // Obter membros
+    const members = await db.all(
+      `SELECT u.id, u.name, u.email, pm.role, pm.is_banned, pm.joined_at
+       FROM playlist_members pm
+       JOIN users u ON pm.user_id = u.id
+       WHERE pm.playlist_id = ?
+       ORDER BY pm.role DESC, u.name ASC`,
       playlistId
     );
 
-    const collaborators = await db.all(
-      'SELECT u.id, u.name, u.email, pc.role FROM playlist_collaborators pc JOIN users u ON pc.user_id = u.id WHERE pc.playlist_id = ?',
+    // Obter músicas ordenadas por fila
+    const songs = await db.all(
+      `SELECT ps.*, u.name as added_by_name
+       FROM playlist_songs ps
+       JOIN users u ON ps.added_by = u.id
+       WHERE ps.playlist_id = ? AND ps.is_banned = 0
+       ORDER BY ps.position_in_queue ASC, ps.priority ASC, ps.added_at ASC`,
       playlistId
     );
 
     res.json({
       playlist,
+      members,
       songs,
-      collaborators
+      user_role: membership.role
     });
   } catch (error) {
+    console.error('Error fetching playlist:', error);
     res.status(500).json({ error: 'Failed to fetch playlist' });
   }
 });
 
-// CRUD: Atualizar playlist
+// Atualizar configurações da playlist (apenas admin)
 router.put('/:playlistId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
-    const { name, description } = req.body;
+    const { name, description, max_songs_per_user, duration_hours } = req.body;
+    const userId = req.user?.userId;
     const db = getDatabase();
 
-    const playlist = await db.get('SELECT owner_id FROM playlists WHERE id = ?', playlistId);
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
 
-    if (!playlist) {
-      res.status(404).json({ error: 'Playlist not found' });
-      return;
-    }
-
-    if (playlist.owner_id !== req.user?.userId) {
-      res.status(403).json({ error: 'Only owner can update playlist' });
+    if (!membership || membership.role !== 'admin') {
+      res.status(403).json({ error: 'Only admin can update playlist' });
       return;
     }
 
     await db.run(
-      'UPDATE playlists SET name = ?, description = ? WHERE id = ?',
-      [name, description, playlistId]
+      `UPDATE playlists SET name = ?, description = ?, max_songs_per_user = ?, duration_hours = ? 
+       WHERE id = ?`,
+      [name, description, max_songs_per_user, duration_hours, playlistId]
     );
 
     const updated = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
@@ -157,25 +164,25 @@ router.put('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       playlist: updated
     });
   } catch (error) {
+    console.error('Error updating playlist:', error);
     res.status(500).json({ error: 'Failed to update playlist' });
   }
 });
 
-// CRUD: Deletar playlist
+// Deletar playlist (apenas admin)
 router.delete('/:playlistId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
+    const userId = req.user?.userId;
     const db = getDatabase();
 
-    const playlist = await db.get('SELECT owner_id FROM playlists WHERE id = ?', playlistId);
+    const playlist = await db.get(
+      'SELECT created_by FROM playlists WHERE id = ?',
+      playlistId
+    );
 
-    if (!playlist) {
-      res.status(404).json({ error: 'Playlist not found' });
-      return;
-    }
-
-    if (playlist.owner_id !== req.user?.userId) {
-      res.status(403).json({ error: 'Only owner can delete playlist' });
+    if (!playlist || playlist.created_by !== userId) {
+      res.status(403).json({ error: 'Only creator can delete playlist' });
       return;
     }
 
@@ -183,96 +190,8 @@ router.delete('/:playlistId', authMiddleware, async (req: AuthRequest, res: Resp
 
     res.json({ message: 'Playlist deleted successfully' });
   } catch (error) {
+    console.error('Error deleting playlist:', error);
     res.status(500).json({ error: 'Failed to delete playlist' });
-  }
-});
-
-// Adicionar música à playlist
-router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { playlistId } = req.params;
-    const { spotify_track_id, track_name, artist_name } = req.body;
-    const db = getDatabase();
-
-    const playlist = await db.get('SELECT id FROM playlists WHERE id = ?', playlistId);
-
-    if (!playlist) {
-      res.status(404).json({ error: 'Playlist not found' });
-      return;
-    }
-
-    const result = await db.run(
-      'INSERT INTO playlist_songs (playlist_id, spotify_track_id, track_name, artist_name, added_by) VALUES (?, ?, ?, ?, ?)',
-      [playlistId, spotify_track_id, track_name, artist_name, req.user?.userId]
-    );
-
-    const song = await db.get('SELECT * FROM playlist_songs WHERE id = ?', result.lastID);
-
-    res.status(201).json({
-      message: 'Song added successfully',
-      song
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add song' });
-  }
-});
-
-// Remover música da playlist
-router.delete('/:playlistId/songs/:songId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { playlistId, songId } = req.params;
-    const db = getDatabase();
-
-    const song = await db.get('SELECT added_by FROM playlist_songs WHERE id = ? AND playlist_id = ?', [songId, playlistId]);
-
-    if (!song) {
-      res.status(404).json({ error: 'Song not found' });
-      return;
-    }
-
-    if (song.added_by !== req.user?.userId) {
-      res.status(403).json({ error: 'Only song uploader can delete it' });
-      return;
-    }
-
-    await db.run('DELETE FROM playlist_songs WHERE id = ?', songId);
-
-    res.json({ message: 'Song removed successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to remove song' });
-  }
-});
-
-// Adicionar colaborador
-router.post('/:playlistId/collaborators', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { playlistId } = req.params;
-    const { user_id, role = 'contributor' } = req.body;
-    const db = getDatabase();
-
-    const playlist = await db.get('SELECT owner_id FROM playlists WHERE id = ?', playlistId);
-
-    if (!playlist) {
-      res.status(404).json({ error: 'Playlist not found' });
-      return;
-    }
-
-    if (playlist.owner_id !== req.user?.userId) {
-      res.status(403).json({ error: 'Only owner can add collaborators' });
-      return;
-    }
-
-    const result = await db.run(
-      'INSERT INTO playlist_collaborators (playlist_id, user_id, role) VALUES (?, ?, ?)',
-      [playlistId, user_id, role]
-    );
-
-    res.status(201).json({
-      message: 'Collaborator added successfully',
-      collaborator_id: result.lastID
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add collaborator' });
   }
 });
 

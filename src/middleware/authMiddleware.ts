@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/authService';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
   user?: { userId: number; email: string };
 }
 
@@ -26,4 +26,9 @@ export function authMiddleware(
   }
 }
 
-export { AuthRequest };
+export function checkRole(allowedRoles: string[]) {
+  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    // Implementação de verificação de role será adicionada após obter dados da playlist
+    next();
+  };
+}
