@@ -1,0 +1,110 @@
+COOPLIST v2.1 - Spotify Playlist Manager
+=========================================
+
+## O que foi entregue:
+
+### Backend (TypeScript + Express + WebSocket)
+✅ Autenticação com JWT
+✅ Gerenciamento de playlists no Spotify
+✅ Sistema de convites (email + link)
+✅ WebSocket para atualizações em tempo real
+✅ Analytics com eventos
+✅ Integração completa com Spotify API
+✅ SQLite para armazenamento
+✅ Docker multi-stage build
+
+### Características Principais:
+✅ Uma única conta Spotify centralizada
+✅ Convites por email e links únicos
+✅ Fila inteligente (1 música por usuário)
+✅ Prioridade de adição
+✅ Limite de músicas por usuário
+✅ Dashboard de analytics
+✅ Notificações em tempo real
+✅ Histórico de eventos
+
+### Próximos Passos (React Dashboard):
+□ Interface React avançada
+□ Componentes de gerenciamento
+□ Gráficos de analytics
+□ Integração WebSocket no frontend
+□ Busca interativa de Spotify
+□ Sistema de favoritos visual
+
+---
+
+## Como começar:
+
+1. **Clonar/Acessar projeto:**
+   cd C:/Users/User/Cooplist
+
+2. **Configurar Spotify:**
+   - Acesse https://developer.spotify.com/dashboard
+   - Crie uma aplicação
+   - Copie Client ID e Client Secret
+
+3. **Iniciar Docker:**
+   docker run -p 3000:3000 \
+     -e SPOTIFY_CLIENT_ID=seu_id \
+     -e SPOTIFY_CLIENT_SECRET=seu_secret \
+     cooplist:latest
+
+4. **Acessar:**
+   http://localhost:3000
+
+---
+
+## Estrutura do Projeto:
+
+src/
+├── index.ts                    # Servidor principal + WebSocket
+├── database.ts                 # Inicialização SQLite
+├── middleware/
+│   └── authMiddleware.ts       # JWT validation
+├── routes/
+│   ├── auth.ts                 # Login/Register
+│   ├── playlists.ts            # CRUD de playlists
+│   ├── invites.ts              # Sistema de convites
+│   ├── songs.ts                # Gerenciar músicas
+│   ├── members.ts              # Gerenciar membros
+│   ├── analytics.ts            # Estatísticas
+│   └── search.ts               # Busca Spotify
+└── services/
+    └── spotifyService.ts       # API Spotify
+
+---
+
+## Git Info:
+
+User: csiemann
+Email: caetanosiemann@gmail.com
+
+Commits incluem:
+- Initial Cooplist project setup
+- Complete v2.0 restructure
+- v2.1 restructure (Spotify-focused)
+- WebSocket integration
+- Analytics system
+- Invites system
+
+---
+
+## Configuração Recomendada (.env):
+
+SPOTIFY_CLIENT_ID=abc123xyz...
+SPOTIFY_CLIENT_SECRET=xyz123abc...
+JWT_SECRET=use_uma_chave_complexa_aqui
+PORT=3000
+NODE_ENV=development
+
+---
+
+## Docker:
+
+Build: docker build -t cooplist:latest .
+Run:   docker run -p 3000:3000 cooplist:latest
+Push:  docker push seu_registry/cooplist
+
+---
+
+Desenvolvido com ❤️ usando TypeScript, Express e Spotify API
