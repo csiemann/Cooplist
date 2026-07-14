@@ -1,6 +1,7 @@
 import express, { Router, Response } from 'express';
 import { getDatabase } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { io } from '../index';
 
 const router = Router();
 
@@ -61,6 +62,12 @@ router.patch('/:playlistId/members/:memberId', authMiddleware, async (req: AuthR
       [role, memberId, playlistId]
     );
 
+    // Notificar via WebSocket
+    io?.to(`playlist:${playlistId}`).emit('member_role_updated', {
+      member_id: memberId,
+      new_role: role
+    });
+
     res.json({ message: 'Role updated' });
   } catch (error) {
     console.error('Error updating member:', error);
@@ -108,6 +115,12 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
       'INSERT INTO analytics (playlist_id, event_type, user_id) VALUES (?, ?, ?)',
       [playlistId, 'member_removed', member.user_id]
     );
+
+    // Notificar via WebSocket
+    io?.to(`playlist:${playlistId}`).emit('member_removed', {
+      member_id: memberId,
+      user_id: member.user_id
+    });
 
     res.json({ message: 'Member removed' });
   } catch (error) {
