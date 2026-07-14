@@ -24,31 +24,31 @@
   - ✅ Erro 404 (resposta parsing)
   - ✅ socket.io-client instalado
   - ✅ localStorage sincronizado
-  - 📅 Data: 15/07/2026
+  - 📅 Data: 14/07/2026
 
 - **[v2.1.2](./v2.1.2.md)** - Analytics Parsing Fix
   - ✅ Response data parsing corrigido
   - ✅ Fallback para dados vazios
-  - 📅 Data: 15/07/2026
+  - 📅 Data: 14/07/2026
 
 - **[v2.1.1](./v2.1.1.md)** - Permissions & Modals
   - ✅ Proteção de permissão (moderator)
   - ✅ Modal ban para músicas
   - ✅ Modal ban para membros
   - ✅ Sincronização frontend-backend
-  - 📅 Data: 15/07/2026
+  - 📅 Data: 14/07/2026
 
 - **[v2.1.0](./RESTRUCTURE_v2.1.md)** - Major Restructure
   - ✅ Frontend + Backend integrados
   - ✅ Docker multi-stage
   - ✅ Database migrations
-  - 📅 Data: 15/07/2026
+  - 📅 Data: 14/07/2026
 
 - **[v2.0.0](./IMPLEMENTATION.md)** - Core Implementation
   - ✅ Backend API completo
   - ✅ Frontend React setup
   - ✅ Spotify API integration
-  - 📅 Data: 15/07/2026
+  - 📅 Data: 14/07/2026
 
 ---
 
