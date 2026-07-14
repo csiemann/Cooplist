@@ -339,11 +339,11 @@ app.get('/', (req: Request, res: Response): void => {
             const data = await response.json();
 
             if (response.ok) {
-              localStorage.setItem('token', data.token);
-              localStorage.setItem('user', JSON.stringify(data.user));
+              localStorage.setItem('cooplist_token', data.token);
+              localStorage.setItem('cooplist_user', JSON.stringify(data.user));
               messageDiv.className = 'message success';
               messageDiv.textContent = 'Conta criada! Redirecionando...';
-              setTimeout(() => window.location.href = '/dashboard', 1500);
+              setTimeout(() => window.location.href = '/', 1500);
             } else {
               messageDiv.className = 'message error';
               messageDiv.textContent = 'Erro: ' + (data.error || 'Falha ao registrar');
@@ -371,11 +371,11 @@ app.get('/', (req: Request, res: Response): void => {
             const data = await response.json();
 
             if (response.ok) {
-              localStorage.setItem('token', data.token);
-              localStorage.setItem('user', JSON.stringify(data.user));
+              localStorage.setItem('cooplist_token', data.token);
+              localStorage.setItem('cooplist_user', JSON.stringify(data.user));
               messageDiv.className = 'message success';
               messageDiv.textContent = 'Login realizado! Redirecionando...';
-              setTimeout(() => window.location.href = '/dashboard', 1500);
+              setTimeout(() => window.location.href = '/', 1500);
             } else {
               messageDiv.className = 'message error';
               messageDiv.textContent = 'Erro: ' + (data.error || 'Credenciais invalidas');

@@ -11,6 +11,12 @@ COPY src ./src
 
 RUN npm run build
 
+# Build frontend (Vite) inside builder
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm install
+COPY frontend ./frontend
+RUN cd frontend && npm run build
+
 FROM node:20-alpine
 
 WORKDIR /app
@@ -20,6 +26,8 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
+# Copy built frontend to public so Express can serve it
+COPY --from=builder /app/frontend/dist ./public
 
 EXPOSE 3000
 
