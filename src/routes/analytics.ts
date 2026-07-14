@@ -4,12 +4,14 @@ import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// Obter analytics da playlist
-router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+// Obter analytics da playlist - GET /api/playlists/:playlistId/analytics
+router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
     const userId = req.user?.userId;
     const db = getDatabase();
+
+    console.log(`[Analytics] Fetching for playlist ${playlistId}, user ${userId}`);
 
     // Verificar acesso
     const membership = await db.get(
@@ -18,11 +20,18 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
     );
 
     if (!membership) {
+      console.log(`[Analytics] Access denied for user ${userId} on playlist ${playlistId}`);
       res.status(403).json({ error: 'Access denied' });
       return;
     }
 
     const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
+
+    if (!playlist) {
+      console.log(`[Analytics] Playlist ${playlistId} not found`);
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
 
     // Total de musicas
     const totalSongs = await db.get(
@@ -67,6 +76,8 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
     );
 
     const durationHours = (totalDuration?.total_ms || 0) / 1000 / 60 / 60;
+
+    console.log(`[Analytics] Success: ${totalSongs?.count || 0} songs, ${totalMembers?.count || 0} members`);
 
     res.json({
       playlist,
