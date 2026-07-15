@@ -36,6 +36,7 @@ export interface AnalyticsStats {
   total_songs: number;
   total_members: number;
   total_duration_hours: number;
+  total_duration_minutes: number;
   songs_by_user: SongByUser[];
   recent_events: Array<{ event_type: string; created_at: string; name?: string }>;
 }

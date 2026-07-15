@@ -248,6 +248,7 @@ localStorage.getItem('user')
     "total_songs": 0,
     "total_members": 0,
     "total_duration_hours": 0,
+    "total_duration_minutes": 0,
     "songs_by_user": [],
     "recent_events": []
   }

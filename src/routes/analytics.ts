@@ -83,6 +83,7 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
     );
 
     const durationHours = (totalDuration?.total_ms || 0) / 1000 / 60 / 60;
+    const durationMinutes = (totalDuration?.total_ms || 0) / 1000 / 60;
 
     console.log(`[Analytics] Success: ${totalSongs?.count || 0} songs, ${totalMembers?.count || 0} members`);
 
@@ -91,6 +92,7 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
       stats: {
         total_songs: totalSongs?.count || 0,
         total_members: totalMembers?.count || 0,
+        total_duration_minutes: Math.round(durationMinutes * 100) / 100,
         total_duration_hours: Math.round(durationHours * 100) / 100,
         songs_by_user: songsByUser,
         recent_events: recentEvents

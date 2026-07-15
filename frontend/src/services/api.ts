@@ -43,18 +43,36 @@ export const addSongToPlaylist = (playlistId: number, payload: Record<string, un
 export const removeSongFromPlaylist = (playlistId: number, songId: number) =>
   api.delete(`/playlists/${playlistId}/songs/${songId}`);
 
+export const banSong = (playlistId: number, songId: number) =>
+  api.post(`/playlists/${playlistId}/songs/${songId}/ban`);
+
 export const getMembers = (playlistId: number) => api.get(`/playlists/${playlistId}/members`);
 
 export const inviteMember = (playlistId: number, payload: { email: string; role?: string }) =>
   api.post(`/playlists/${playlistId}/invite-email`, payload);
 
-export const createInviteLink = (playlistId: number, payload: { role?: string }) =>
+export const createInviteLink = (playlistId: number, payload: { role?: string; maxUses?: number }) =>
   api.post(`/playlists/${playlistId}/invite-link`, payload);
+
+export const getInviteLinks = (playlistId: number) =>
+  api.get(`/playlists/${playlistId}/invites`);
+
+export const deleteInviteLink = (playlistId: number, inviteId: number) =>
+  api.delete(`/playlists/${playlistId}/invites/${inviteId}`);
 
 export const updateMemberRole = (playlistId: number, memberId: number, role: string) =>
   api.patch(`/playlists/${playlistId}/members/${memberId}`, { role });
 
 export const removeMember = (playlistId: number, memberId: number) =>
   api.delete(`/playlists/${playlistId}/members/${memberId}`);
+
+export const banMember = (playlistId: number, memberId: number, reason?: string) =>
+  api.post(`/playlists/${playlistId}/members/${memberId}/ban`, { reason });
+
+export const unbanMember = (playlistId: number, userId: number) =>
+  api.post(`/playlists/${playlistId}/members/${userId}/unban`);
+
+export const syncPlaylistToSpotify = (playlistId: number, spotifyAccessToken: string) =>
+  api.post(`/playlists/${playlistId}/sync-to-spotify`, { spotifyAccessToken });
 
 export default api;

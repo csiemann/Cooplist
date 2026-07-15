@@ -139,6 +139,7 @@ export default function DashboardPage() {
           <div style={{ background: '#0f1b2d', padding: '16px', borderRadius: '16px', border: '1px solid #223449' }}>
             <div style={{ fontSize: '12px', color: '#63d3ff', marginBottom: '6px' }}>Duração total</div>
             <div style={{ fontSize: '22px', fontWeight: 700 }}>{analytics?.total_duration_hours ?? 0}h</div>
+            <div style={{ fontSize: '22px', fontWeight: 700 }}>{analytics?.total_duration_minutes ?? 0}min</div>
           </div>
         </div>
       </div>
