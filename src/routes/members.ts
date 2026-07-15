@@ -75,7 +75,7 @@ router.patch('/:playlistId/members/:memberId', authMiddleware, async (req: AuthR
   }
 });
 
-// Remover membro
+// Remover membro (SEM banir - pode entrar novamente)
 router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId, memberId } = req.params;
@@ -108,12 +108,13 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
       return;
     }
 
+    // Apenas remover (membro pode entrar novamente)
     await db.run('DELETE FROM playlist_members WHERE id = ? AND playlist_id = ?', [memberId, playlistId]);
 
     // Analytics
     await db.run(
-      'INSERT INTO analytics (playlist_id, event_type, user_id) VALUES (?, ?, ?)',
-      [playlistId, 'member_removed', member.user_id]
+      'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+      [playlistId, 'member_removed', member.user_id, JSON.stringify({ reason: 'removed' })]
     );
 
     // Notificar via WebSocket
@@ -126,6 +127,106 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
   } catch (error) {
     console.error('Error removing member:', error);
     res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// Ban member (impedindo reentrada)
+router.post('/:playlistId/members/:memberId/ban', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playlistId, memberId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || !['admin', 'moderator'].includes(membership.role)) {
+      res.status(403).json({ error: 'Only admins/moderators can ban members' });
+      return;
+    }
+
+    const member = await db.get(
+      'SELECT user_id, role FROM playlist_members WHERE id = ? AND playlist_id = ?',
+      [memberId, playlistId]
+    );
+
+    if (!member) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+
+    // Prevent moderator from banning an admin
+    if (membership.role === 'moderator' && member.role === 'admin') {
+      res.status(403).json({ error: 'Moderators cannot ban administrators' });
+      return;
+    }
+
+    // Criar ban record
+    await db.run(
+      `INSERT INTO playlist_bans (playlist_id, user_id, banned_by, reason)
+       VALUES (?, ?, ?, ?)`,
+      [playlistId, member.user_id, userId, reason || null]
+    );
+
+    // Remover da playlist
+    await db.run('DELETE FROM playlist_members WHERE id = ? AND playlist_id = ?', [memberId, playlistId]);
+
+    // Analytics
+    await db.run(
+      'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+      [playlistId, 'member_banned', member.user_id, JSON.stringify({ reason })]
+    );
+
+    // Notificar via WebSocket
+    io?.to(`playlist:${playlistId}`).emit('member_banned', {
+      member_id: memberId,
+      user_id: member.user_id,
+      reason
+    });
+
+    res.json({ message: 'Member banned' });
+  } catch (error) {
+    console.error('Error banning member:', error);
+    res.status(500).json({ error: 'Failed to ban member' });
+  }
+});
+
+// Desban member
+router.post('/:playlistId/members/:userId/unban', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playlistId, userId: bannerUserId } = req.params;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || membership.role !== 'admin') {
+      res.status(403).json({ error: 'Only admins can unban members' });
+      return;
+    }
+
+    // Remover ban
+    await db.run(
+      'DELETE FROM playlist_bans WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, bannerUserId]
+    );
+
+    // Analytics
+    await db.run(
+      'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+      [playlistId, 'member_unbanned', bannerUserId, JSON.stringify({})]
+    );
+
+    res.json({ message: 'Member unbanned' });
+  } catch (error) {
+    console.error('Error unbanning member:', error);
+    res.status(500).json({ error: 'Failed to unban member' });
   }
 });
 

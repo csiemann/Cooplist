@@ -80,7 +80,51 @@ class SpotifyService {
     }
   }
 
-  // Criar playlist no Spotify
+  // Criar playlist no Spotify (com user access token)
+  async createPlaylistWithUserToken(
+    userAccessToken: string,
+    name: string,
+    description: string,
+    isPublic: boolean = false
+  ): Promise<SpotifyPlaylist> {
+    try {
+      // 1. Obter userId do usuário logado
+      const meResponse = await axios.get(`${this.baseURL}/me`, {
+        headers: { Authorization: `Bearer ${userAccessToken}` }
+      });
+
+      const userId = meResponse.data.id;
+
+      // 2. Criar playlist privada na conta do usuário
+      const playlistResponse = await axios.post(
+        `${this.baseURL}/users/${userId}/playlists`,
+        {
+          name,
+          description,
+          public: isPublic // Privado por padrão (recomendado)
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userAccessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        id: playlistResponse.data.id,
+        name: playlistResponse.data.name,
+        description: playlistResponse.data.description,
+        external_urls: playlistResponse.data.external_urls,
+        images: playlistResponse.data.images || []
+      };
+    } catch (error) {
+      console.error('Failed to create playlist on Spotify:', error);
+      throw new Error('Failed to create playlist on Spotify');
+    }
+  }
+
+  // Criar playlist local (fallback se não tiver user token)
   async createPlaylist(name: string, description: string): Promise<SpotifyPlaylist> {
     if (!this.clientId || !this.clientSecret) {
       console.warn('Spotify credentials not configured. Creating local playlist fallback.');
@@ -114,10 +158,11 @@ class SpotifyService {
   // Adicionar musicas a playlist
   async addTracksToPlaylist(
     playlistId: string,
-    trackUris: string[]
+    trackUris: string[],
+    userAccessToken?: string
   ): Promise<void> {
     try {
-      const token = await this.getAccessToken();
+      const token = userAccessToken || await this.getAccessToken();
 
       // Dividir em chunks de 100 (limite do Spotify)
       for (let i = 0; i < trackUris.length; i += 100) {
@@ -141,10 +186,11 @@ class SpotifyService {
   // Remover musicas da playlist
   async removeTracksFromPlaylist(
     playlistId: string,
-    trackUris: string[]
+    trackUris: string[],
+    userAccessToken?: string
   ): Promise<void> {
     try {
-      const token = await this.getAccessToken();
+      const token = userAccessToken || await this.getAccessToken();
 
       for (let i = 0; i < trackUris.length; i += 100) {
         const chunk = trackUris.slice(i, i + 100);

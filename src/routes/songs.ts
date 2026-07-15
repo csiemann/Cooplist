@@ -53,6 +53,17 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
       }
     }
 
+    // Verificar duplicatas - mesma música não pode ser adicionada duas vezes
+    const existingSong = await db.get(
+      'SELECT id FROM playlist_songs WHERE playlist_id = ? AND spotify_track_id = ?',
+      [playlistId, spotify_track_id]
+    );
+
+    if (existingSong) {
+      res.status(400).json({ error: 'This song is already in the playlist' });
+      return;
+    }
+
     const result = await db.run(
       `INSERT INTO playlist_songs 
        (playlist_id, spotify_track_id, track_name, artist_name, track_duration_ms, added_by, priority)
@@ -86,7 +97,7 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
   }
 });
 
-// Remover música
+// Remover música (sem banir)
 router.delete('/:playlistId/songs/:songId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId, songId } = req.params;
@@ -128,6 +139,52 @@ router.delete('/:playlistId/songs/:songId', authMiddleware, async (req: AuthRequ
   } catch (error) {
     console.error('Error removing song:', error);
     res.status(500).json({ error: 'Failed to remove song' });
+  }
+});
+
+// Ban song (proibir que seja adicionada novamente)
+router.post('/:playlistId/songs/:songId/ban', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playlistId, songId } = req.params;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || !['admin', 'moderator'].includes(membership.role)) {
+      res.status(403).json({ error: 'Only moderators/admins can ban songs' });
+      return;
+    }
+
+    const song = await db.get(
+      'SELECT * FROM playlist_songs WHERE id = ? AND playlist_id = ?',
+      [songId, playlistId]
+    );
+
+    if (!song) {
+      res.status(404).json({ error: 'Song not found' });
+      return;
+    }
+
+    // Marcar como banida
+    await db.run(
+      'UPDATE playlist_songs SET is_banned = 1 WHERE id = ?',
+      songId
+    );
+
+    // Analytics
+    await db.run(
+      'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+      [playlistId, 'song_banned', userId, JSON.stringify({ track_name: song.track_name })]
+    );
+
+    res.json({ message: 'Song banned' });
+  } catch (error) {
+    console.error('Error banning song:', error);
+    res.status(500).json({ error: 'Failed to ban song' });
   }
 });
 

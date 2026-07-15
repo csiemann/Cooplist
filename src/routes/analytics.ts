@@ -4,7 +4,7 @@ import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// Obter analytics da playlist - GET /api/playlists/:playlistId/analytics
+// Obter analytics da playlist (apenas moderators e admins)
 router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
@@ -22,6 +22,13 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
     if (!membership) {
       console.log(`[Analytics] Access denied for user ${userId} on playlist ${playlistId}`);
       res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // RESTRIÇÃO: Apenas moderadores e admins podem ver analytics
+    if (!['admin', 'moderator'].includes(membership.role)) {
+      console.log(`[Analytics] User ${userId} is ${membership.role}, not authorized to view analytics`);
+      res.status(403).json({ error: 'Only moderators and admins can view analytics' });
       return;
     }
 

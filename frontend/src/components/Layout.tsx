@@ -85,7 +85,7 @@ export default function Layout({ children }: LayoutProps) {
             </>
           ) : (
             <div style={{ marginBottom: '16px', color: '#9fb0c3', fontSize: '14px', lineHeight: '1.5' }}>
-              Você não tem permissão para criar playlists. Somente administradores e moderadores podem criar novas playlists.
+              
             </div>
           )}
 

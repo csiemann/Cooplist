@@ -13,6 +13,10 @@ interface CreatePlaylistRequest {
   duration_hours?: number;
 }
 
+interface CreateSpotifyPlaylistRequest {
+  spotifyAccessToken: string; // User's Spotify access token
+}
+
 // Criar playlist
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -78,6 +82,98 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
   } catch (error) {
     console.error('Error creating playlist:', error);
     res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+// Criar playlist no Spotify (usando user access token)
+// POST /api/playlists/:playlistId/sync-to-spotify
+router.post('/:playlistId/sync-to-spotify', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playlistId } = req.params;
+    const { spotifyAccessToken } = req.body as CreateSpotifyPlaylistRequest;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    if (!spotifyAccessToken) {
+      res.status(400).json({ error: 'Spotify access token is required' });
+      return;
+    }
+
+    // Verificar acesso
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || !['admin', 'moderator'].includes(membership.role)) {
+      res.status(403).json({ error: 'Only admins/moderators can create playlist on Spotify' });
+      return;
+    }
+
+    // Obter playlist
+    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
+
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
+
+    // Se já existe no Spotify, retornar erro
+    if (playlist.spotify_id && !playlist.spotify_id.includes('fallback')) {
+      res.status(400).json({ error: 'Playlist already exists on Spotify' });
+      return;
+    }
+
+    try {
+      // Criar playlist no Spotify com user token
+      const spotifyPlaylist = await spotifyService.createPlaylistWithUserToken(
+        spotifyAccessToken,
+        playlist.name,
+        playlist.description || '',
+        false // Privado por padrão
+      );
+
+      // Atualizar com Spotify ID
+      await db.run(
+        'UPDATE playlists SET spotify_id = ? WHERE id = ?',
+        [spotifyPlaylist.id, playlistId]
+      );
+
+      // Adicionar todas as músicas atuais à playlist no Spotify
+      const songs = await db.all(
+        'SELECT spotify_track_id FROM playlist_songs WHERE playlist_id = ? AND spotify_track_id IS NOT NULL',
+        playlistId
+      );
+
+      if (songs.length > 0) {
+        const trackIds = songs.map(s => s.spotify_track_id).filter(Boolean);
+        await spotifyService.addTracksToPlaylist(spotifyPlaylist.id, trackIds, spotifyAccessToken);
+      }
+
+      // Analytics
+      await db.run(
+        'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+        [playlistId, 'playlist_synced_to_spotify', userId, JSON.stringify({ spotify_id: spotifyPlaylist.id })]
+      );
+
+      res.json({
+        message: 'Playlist created on Spotify',
+        spotify_playlist: {
+          id: spotifyPlaylist.id,
+          name: spotifyPlaylist.name,
+          url: spotifyPlaylist.external_urls.spotify
+        }
+      });
+    } catch (error: any) {
+      console.error('Error creating Spotify playlist:', error);
+      res.status(500).json({
+        error: 'Failed to create playlist on Spotify',
+        details: error?.message || 'Unknown error'
+      });
+    }
+  } catch (error) {
+    console.error('Error syncing playlist:', error);
+    res.status(500).json({ error: 'Failed to sync playlist' });
   }
 });
 
@@ -181,7 +277,7 @@ router.delete('/:playlistId', authMiddleware, async (req: AuthRequest, res: Resp
     }
 
     // Deletar do Spotify
-    if (playlist.spotify_id) {
+    if (playlist.spotify_id && !playlist.spotify_id.includes('fallback') && !playlist.spotify_id.includes('local')) {
       await spotifyService.deletePlaylist(playlist.spotify_id);
     }
 

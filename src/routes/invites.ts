@@ -5,11 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
-// Gerar convite por link
+// Gerar convite por link (reutilizável)
 router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
-    const { role = 'user', expiresIn = 7 } = req.body;
+    const { role = 'user', expiresIn = 7, maxUses } = req.body;
     const userId = req.user?.userId;
     const db = getDatabase();
 
@@ -28,9 +28,9 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
     const expiresAt = new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000);
 
     const result = await db.run(
-      `INSERT INTO invites (playlist_id, token, role, created_by, expires_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [playlistId, token, role, userId, expiresAt.toISOString()]
+      `INSERT INTO invites (playlist_id, token, role, created_by, expires_at, max_uses)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [playlistId, token, role, userId, expiresAt.toISOString(), maxUses || null]
     );
 
     const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
@@ -41,7 +41,9 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
       link: inviteLink,
       token,
       role,
-      expires_at: expiresAt
+      expires_at: expiresAt,
+      max_uses: maxUses || null,
+      uses: 0
     });
   } catch (error) {
     console.error('Error creating invite link:', error);
@@ -119,6 +121,15 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // Verificar limite de usos
+    if (invite.max_uses) {
+      const uses = invite.uses || 0;
+      if (uses >= invite.max_uses) {
+        res.status(400).json({ error: 'Invite link has reached maximum uses' });
+        return;
+      }
+    }
+
     // Verificar se ja é membro
     const existing = await db.get(
       'SELECT id FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
@@ -136,11 +147,19 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
       [invite.playlist_id, userId, invite.role]
     );
 
-    // Marcar convite como usado
-    await db.run(
-      'UPDATE invites SET used_at = CURRENT_TIMESTAMP WHERE id = ?',
-      invite.id
-    );
+    // Incrementar uso do convite (não marcar como "usado" se tiver max_uses)
+    if (invite.max_uses) {
+      await db.run(
+        'UPDATE invites SET uses = uses + 1 WHERE id = ?',
+        invite.id
+      );
+    } else {
+      // Se não tiver limite, marcar como usado
+      await db.run(
+        'UPDATE invites SET used_at = CURRENT_TIMESTAMP WHERE id = ?',
+        invite.id
+      );
+    }
 
     // Analytics
     await db.run(
@@ -174,7 +193,7 @@ router.get('/:playlistId/invites', authMiddleware, async (req: AuthRequest, res:
     }
 
     const invites = await db.all(
-      `SELECT id, email, role, created_by, expires_at, used_at, created_at
+      `SELECT id, email, role, created_by, expires_at, used_at, max_uses, uses, created_at, token
        FROM invites
        WHERE playlist_id = ?
        ORDER BY created_at DESC`,
@@ -188,7 +207,7 @@ router.get('/:playlistId/invites', authMiddleware, async (req: AuthRequest, res:
   }
 });
 
-// Revogar convite
+// Deletar/Revogar convite
 router.delete('/:playlistId/invites/:inviteId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId, inviteId } = req.params;
@@ -201,8 +220,19 @@ router.delete('/:playlistId/invites/:inviteId', authMiddleware, async (req: Auth
       [playlistId, userId]
     );
 
-    if (!membership || membership.role !== 'admin') {
-      res.status(403).json({ error: 'Only admins can revoke invites' });
+    if (!membership || !['admin', 'moderator'].includes(membership.role)) {
+      res.status(403).json({ error: 'Only admins/moderators can revoke invites' });
+      return;
+    }
+
+    // Verificar que o convite pertence a esta playlist
+    const invite = await db.get(
+      'SELECT id FROM invites WHERE id = ? AND playlist_id = ?',
+      [inviteId, playlistId]
+    );
+
+    if (!invite) {
+      res.status(404).json({ error: 'Invite not found' });
       return;
     }
 
