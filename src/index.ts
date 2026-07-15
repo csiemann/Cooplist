@@ -56,11 +56,16 @@ initDatabase().catch(error => {
 
 // Rotas
 app.use('/api/auth', authRoutes);
-app.use('/api/playlists', playlistRoutes);
+
+// IMPORTANTE: Montar analytics ANTES de playlists para evitar conflito de rotas
+// /api/playlists/:playlistId/analytics deve ser capturado por analytics router
+// Não por playlists router que tem GET /:playlistId
+app.use('/api/playlists', analyticsRoutes);
 app.use('/api/playlists', inviteRoutes);
 app.use('/api/playlists', songsRoutes);
 app.use('/api/playlists', membersRoutes);
-app.use('/api/playlists', analyticsRoutes);
+app.use('/api/playlists', playlistRoutes);
+
 app.use('/api/search', searchRoutes);
 
 // Health check
@@ -394,7 +399,7 @@ app.get('/', (req: Request, res: Response): void => {
 server.listen(PORT, (): void => {
   console.log('');
   console.log('==============================================');
-  console.log('  COOPLIST v2.1 - Spotify Playlist Manager');
+  console.log('  COOPLIST v2.2.0 - Spotify Playlist Manager');
   console.log('  Server running on port ' + PORT);
   console.log('  Access: http://localhost:' + PORT);
   console.log('==============================================');
@@ -405,5 +410,7 @@ server.listen(PORT, (): void => {
   console.log('  - Real-time updates (WebSocket)');
   console.log('  - Analytics dashboard');
   console.log('  - Smart queue system');
+  console.log('  - CI/CD Pipeline');
+  console.log('  - Unit Tests (30+)');
   console.log('');
 });

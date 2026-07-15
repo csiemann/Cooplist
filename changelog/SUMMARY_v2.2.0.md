@@ -301,5 +301,5 @@ Tags:           v2.2.0 (recomendado)
 ```
 
 Criado por: **csiemann**  
-Data: **16/07/2026**  
+Data: **15/07/2026**  
 Tempo: **~2 horas**
