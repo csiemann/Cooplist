@@ -67,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', color: '#9fb0c3', fontSize: '14px' }}>
             <span>{user?.name}</span>
-            <span style={{ color: '#63d3ff', textTransform: 'uppercase', fontSize: '12px' }}>{user?.role || 'user'}</span>
+            <span style={{ color: '#63d3ff', textTransform: 'uppercase', fontSize: '12px' }}>{user?.role || 'member'}</span>
           </div>
           <button onClick={() => { logout(); navigate('/login'); }} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #2f455b', background: '#111c2b', color: 'white', cursor: 'pointer' }}>Logout</button>
         </div>

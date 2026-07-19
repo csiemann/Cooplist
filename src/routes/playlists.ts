@@ -209,23 +209,22 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
     const userId = req.user?.userId;
     const db = getDatabase();
 
+    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
+
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
+
     // Verificar acesso
     const membership = await db.get(
       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]
     );
 
-    console.log(`playlist details request: playlistId=${playlistId} userId=${userId} membership=${JSON.stringify(membership)}`);
-
-    if (!membership) {
-      res.status(403).json({ error: 'Access denied' });
-      return;
-    }
-
-    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
-
-    if (!playlist) {
-      res.status(404).json({ error: 'Playlist not found' });
+    // Se a playlist não for pública, o usuário deve ser membro
+    if (playlist.is_public !== 1 && !membership) {
+      res.status(403).json({ error: 'Access denied to private playlist' });
       return;
     }
 
@@ -251,7 +250,7 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       playlist,
       members,
       songs,
-      user_role: membership.role
+      user_role: membership ? membership.role : null
     });
   } catch (error) {
     console.error('Error fetching playlist:', error);

@@ -32,8 +32,8 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
         return;
       }
 
-      // Auto-join: use user's global role if admin/moderator, otherwise 'user'
-      const joinRole = (userRow.role && ['admin', 'moderator'].includes(userRow.role)) ? userRow.role : 'user';
+      // Auto-join: use user's global role if admin/moderator, otherwise 'member'
+      const joinRole = (userRow.role && ['admin', 'moderator'].includes(userRow.role)) ? userRow.role : 'member';
       const insertRes = await db.run('INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)', [playlistId, userId, joinRole]);
       membership = { id: insertRes.lastID, role: joinRole };
     }

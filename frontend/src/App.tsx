@@ -25,14 +25,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/join/:token"
-          element={
-            <ProtectedRoute>
-              <AcceptInvitePage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/join/:token" element={<AcceptInvitePage />} />
       </Routes>
     </BrowserRouter>
   );
