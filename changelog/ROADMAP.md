@@ -196,7 +196,7 @@ v2.2.0 (1-2 semanas)
 ├─ Testes básicos
 └─ CI/CD pipeline
 
-v2.3.0 (2-3 semanas)
+v2.3.1 (2-3 semanas)
 ├─ Deployment em produção
 ├─ Admin dashboard
 ├─ Performance otimizações

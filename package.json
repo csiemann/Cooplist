@@ -1,6 +1,6 @@
 {
   "name": "cooplist",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Collaborative Spotify playlist manager with real-time updates",
   "main": "dist/index.js",
   "scripts": {

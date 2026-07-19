@@ -81,7 +81,7 @@ app.get('*', (req: Request, res: Response) => {
 server.listen(PORT, (): void => {
   console.log('');
   console.log('==============================================');
-  console.log('  COOPLIST v2.3.0 - Spotify Playlist Manager');
+  console.log('  COOPLIST v2.3.1 - Spotify Playlist Manager');
   console.log('  Server running on port ' + PORT);
   console.log('  Access: http://localhost:' + PORT);
   console.log('==============================================');

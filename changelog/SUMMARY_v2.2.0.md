@@ -259,7 +259,7 @@ docker run -p 3000:3000 cooplist:latest
 
 ---
 
-## ✨ Próximo Passo (v2.3.0)
+## ✨ Próximo Passo (v2.3.1)
 
 ```
 - [ ] E2E tests (Cypress)
