@@ -1,0 +1,20 @@
+# Dockerfile for running tests
+
+# Use a Node.js base image
+FROM node:20-alpine
+
+# Set the working directory
+WORKDIR /app
+
+# Copy package and tsconfig files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies, including devDependencies
+RUN npm install
+
+# Copy the rest of the project files
+COPY . .
+
+# Keep the container running for interactive test execution
+CMD ["tail", "-f", "/dev/null"]
