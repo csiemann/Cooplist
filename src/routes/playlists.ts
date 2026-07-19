@@ -211,6 +211,8 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
 
     const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
 
+    console.log('playlist: ', playlist);
+
     if (!playlist) {
       res.status(404).json({ error: 'Playlist not found' });
       return;
@@ -221,6 +223,8 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]
     );
+
+    console.log('membership: ', membership);
 
     // Se a playlist não for pública, o usuário deve ser membro
     if (playlist.is_public !== 1 && !membership) {
@@ -265,13 +269,23 @@ router.delete('/:playlistId', authMiddleware, async (req: AuthRequest, res: Resp
     const userId = req.user?.userId;
     const db = getDatabase();
 
+    const membership = await db.get(
+      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (!membership || membership.role !== 'admin') {
+      res.status(403).json({ error: 'Only admins can delete this playlist' });
+      return;
+    }
+
     const playlist = await db.get(
-      'SELECT created_by, spotify_id FROM playlists WHERE id = ?',
+      'SELECT spotify_id FROM playlists WHERE id = ?',
       playlistId
     );
 
-    if (!playlist || playlist.created_by !== userId) {
-      res.status(403).json({ error: 'Only creator can delete playlist' });
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
       return;
     }
 

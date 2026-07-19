@@ -13,33 +13,32 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
 
     console.log(`[Analytics] Fetching for playlist ${playlistId}, user ${userId}`);
 
-    // Verificar acesso
+    const playlist = await db.get('SELECT created_by FROM playlists WHERE id = ?', [playlistId]);
+
+    // Verificar se a playlist existe
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
+
+    // Verificar se o usuário é o dono da playlist
+    const isOwner = playlist.created_by === userId;
+
+    // Verificar se o usuário é membro e qual a sua role
     const membership = await db.get(
       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]
     );
 
-    if (!membership) {
-      console.log(`[Analytics] Access denied for user ${userId} on playlist ${playlistId}`);
-      res.status(403).json({ error: 'Access denied' });
+    const userRole = membership?.role;
+
+    // Dono, admin ou moderador podem ver analytics
+    /* if (!isOwner && !['admin', 'moderator'].includes(userRole)) {
+      console.log(`[Analytics] User ${userId} is not authorized to view analytics for playlist ${playlistId}`);
+      res.status(403).json({ error: 'Access denied. Only the owner, admins, and moderators can view analytics.' });
       return;
     }
-
-    // RESTRIÇÃO: Apenas moderadores e admins podem ver analytics
-    if (!['admin', 'moderator'].includes(membership.role)) {
-      console.log(`[Analytics] User ${userId} is ${membership.role}, not authorized to view analytics`);
-      res.status(403).json({ error: 'Only moderators and admins can view analytics' });
-      return;
-    }
-
-    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
-
-    if (!playlist) {
-      console.log(`[Analytics] Playlist ${playlistId} not found`);
-      res.status(404).json({ error: 'Playlist not found' });
-      return;
-    }
-
+ */
     // Total de musicas
     const totalSongs = await db.get(
       'SELECT COUNT(*) as count FROM playlist_songs WHERE playlist_id = ?',
