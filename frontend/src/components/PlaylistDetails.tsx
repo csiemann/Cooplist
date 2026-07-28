@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getMembers, inviteMember, createInviteLink, updateMemberRole, removeMember, removeSongFromPlaylist } from '../services/api';
+import { getMembers, createInviteLink, updateMemberRole, removeMember, removeSongFromPlaylist } from '../services/api';
+// import { inviteMember, createInviteLink } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePlaylistStore } from '../stores/playlistStore';
 import type { Playlist, Song } from '../types';
@@ -17,7 +18,7 @@ interface BanModal {
 
 export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProps) {
   const [members, setMembers] = useState<any[]>([]);
-  const [inviteEmail, setInviteEmail] = useState('');
+  // const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('user');
   const [inviteLink, setInviteLink] = useState('');
   const [error, setError] = useState('');
@@ -41,7 +42,7 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
+  /* const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -56,7 +57,7 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Falha ao enviar convite');
     }
-  };
+  }; */
 
   const handleCreateLink = async () => {
     setError('');
@@ -149,16 +150,16 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
         {user?.role && ['admin', 'moderator'].includes(user.role) ? (
           <div style={{ display: 'grid', gap: '10px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Convidar por email" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white' }} />
+              {/* <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Convidar por email" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white' }} />*/}
               <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} style={{ flex: '1 1 140px', padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white' }}>
                 <option value="user">Usuário</option>
                 <option value="moderator">Moderador</option>
               </select>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button type="button" onClick={handleInvite} style={{ flex: '1 1 180px', padding: '10px 12px', borderRadius: '8px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer' }}>Convidar por email</button>
               <button type="button" onClick={handleCreateLink} style={{ flex: '1 1 180px', padding: '10px 12px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer' }}>Gerar link de convite</button>
             </div>
+            {/* <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}> */}
+            {/* <button type="button" onClick={handleInvite} style={{ flex: '1 1 180px', padding: '10px 12px', borderRadius: '8px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer' }}>Convidar por email</button> */}
+            {/* </div> */}
             {inviteLink && (
               <div style={{ background: '#111c2b', padding: '12px', borderRadius: '10px', border: '1px solid #223449', wordBreak: 'break-all' }}>
                 <strong>Link de convite:</strong>
@@ -184,20 +185,20 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {/* Botão de role: somente admin pode alterar admin, moderador pode alterar user */}
                   {!(user.role === 'moderator' && member.role === 'admin') && (
-                    <button onClick={() => handleRoleChange(member)} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer', opacity: user.role === 'moderator' && member.role === 'admin' ? 0.5 : 1 }} disabled={user.role === 'moderator' && member.role === 'admin'}>
+                    !(user.id == member.id) && (<button onClick={() => handleRoleChange(member)} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: '#1db954', color: 'black', cursor: 'pointer', opacity: user.role === 'moderator' && member.role === 'admin' ? 0.5 : 1 }} disabled={user.role === 'moderator' && member.role === 'admin'}>
                       {member.role === 'admin' ? 'Tornar moderador' : 'Tornar admin'}
-                    </button>
+                    </button>)
                   )}
                   {/* Botão de remover: abre modal de banimento */}
-                  <button onClick={() => openBanMemberModal(member)} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: '#ff5c5c', color: 'white', cursor: 'pointer' }}>
+                  {!(user.id == member.id) && (<button onClick={() => openBanMemberModal(member)} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: '#ff5c5c', color: 'white', cursor: 'pointer' }}>
                     Remover
-                  </button>
+                  </button>)}
                 </div>
               )}
             </div>
           ))}
         </div>
-      </section>
+      </section >
 
       <section style={{ background: '#0f1b2d', border: '1px solid #223449', borderRadius: '16px', padding: '16px' }}>
         <h3 style={{ marginTop: 0 }}>Fila de reprodução</h3>
@@ -225,60 +226,62 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
       </section>
 
       {/* Modal de Banimento */}
-      {banModal.type && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50 }}>
-          <div style={{ width: '100%', maxWidth: '420px', background: '#0f1b2d', border: '2px solid #ff5c5c', borderRadius: '20px', padding: '24px', position: 'relative' }}>
-            <button type="button" onClick={closeBanModal} style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: '#9fb0c3', cursor: 'pointer', fontSize: '24px' }}>×</button>
-            
-            <h3 style={{ marginTop: 0, color: '#ff5c5c' }}>
-              {banModal.type === 'member' ? 'Remover e Banir Membro' : 'Remover Música'}
-            </h3>
+      {
+        banModal.type && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50 }}>
+            <div style={{ width: '100%', maxWidth: '420px', background: '#0f1b2d', border: '2px solid #ff5c5c', borderRadius: '20px', padding: '24px', position: 'relative' }}>
+              <button type="button" onClick={closeBanModal} style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: '#9fb0c3', cursor: 'pointer', fontSize: '24px' }}>×</button>
 
-            <div style={{ background: '#111c2b', padding: '12px', borderRadius: '10px', border: '1px solid #223449', marginBottom: '16px' }}>
-              <div style={{ fontSize: '14px', color: '#9fb0c3', marginBottom: '4px' }}>Alvo:</div>
-              <div style={{ fontWeight: 700 }}>{banModal.targetName}</div>
-            </div>
+              <h3 style={{ marginTop: 0, color: '#ff5c5c' }}>
+                {banModal.type === 'member' ? 'Remover e Banir Membro' : 'Remover Música'}
+              </h3>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#9fb0c3', fontSize: '14px' }}>
-                Motivo da remoção:
-              </label>
-              <textarea
-                value={banReason}
-                onChange={(e) => setBanReason(e.target.value)}
-                placeholder={banModal.type === 'member' ? 'Ex: Comportamento inadequado' : 'Ex: Música não apropriada para a playlist'}
-                rows={3}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white', fontFamily: 'inherit' }}
-              />
-            </div>
-
-            {banModal.type === 'member' && (
-              <div style={{ background: '#1a2a3a', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', color: '#9fb0c3', border: '1px solid #223449' }}>
-                ⚠️ O membro será removido e banido da playlist. Ele não poderá entrar novamente.
+              <div style={{ background: '#111c2b', padding: '12px', borderRadius: '10px', border: '1px solid #223449', marginBottom: '16px' }}>
+                <div style={{ fontSize: '14px', color: '#9fb0c3', marginBottom: '4px' }}>Alvo:</div>
+                <div style={{ fontWeight: 700 }}>{banModal.targetName}</div>
               </div>
-            )}
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={handleBanConfirm}
-                disabled={isProcessing}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#ff5c5c', color: 'white', fontWeight: 700, cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
-              >
-                {isProcessing ? 'Removendo...' : 'Confirmar Remoção'}
-              </button>
-              <button
-                type="button"
-                onClick={closeBanModal}
-                disabled={isProcessing}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #223449', background: '#111c2b', color: 'white', cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
-              >
-                Cancelar
-              </button>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: '#9fb0c3', fontSize: '14px' }}>
+                  Motivo da remoção:
+                </label>
+                <textarea
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder={banModal.type === 'member' ? 'Ex: Comportamento inadequado' : 'Ex: Música não apropriada para a playlist'}
+                  rows={3}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white', fontFamily: 'inherit' }}
+                />
+              </div>
+
+              {banModal.type === 'member' && (
+                <div style={{ background: '#1a2a3a', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', color: '#9fb0c3', border: '1px solid #223449' }}>
+                  ⚠️ O membro será removido e banido da playlist. Ele não poderá entrar novamente.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleBanConfirm}
+                  disabled={isProcessing}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#ff5c5c', color: 'white', fontWeight: 700, cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                >
+                  {isProcessing ? 'Removendo...' : 'Confirmar Remoção'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeBanModal}
+                  disabled={isProcessing}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #223449', background: '#111c2b', color: 'white', cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

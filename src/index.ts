@@ -11,6 +11,7 @@ import songsRoutes from './routes/songs';
 import membersRoutes from './routes/members';
 import analyticsRoutes from './routes/analytics';
 import searchRoutes from './routes/search';
+import spotifyService from './services/spotifyService';
 
 const app = express();
 const server = http.createServer(app);
@@ -69,8 +70,18 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/search', searchRoutes);
 
 // Health check
-app.get('/api/health', (req: Request, res: Response): void => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req: Request, res: Response): Promise<void> => {
+  const spotifyStatus = await spotifyService.validateCredentials();
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    spotify: spotifyStatus
+  });
+});
+
+app.get('/api/spotify/health', async (req: Request, res: Response): Promise<void> => {
+  const spotifyStatus = await spotifyService.validateCredentials();
+  res.status(spotifyStatus.valid ? 200 : 400).json(spotifyStatus);
 });
 
 // WebSocket

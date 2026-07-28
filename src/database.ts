@@ -100,11 +100,21 @@ export async function initDatabase(): Promise<Database> {
       created_by INTEGER NOT NULL,
       expires_at DATETIME,
       used_at DATETIME,
+      max_uses INTEGER,
+      uses INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  await db.exec(`
+    ALTER TABLE invites ADD COLUMN max_uses INTEGER
+  `).catch(() => {});
+
+  await db.exec(`
+    ALTER TABLE invites ADD COLUMN uses INTEGER DEFAULT 0
+  `).catch(() => {});
 
   // Musicas na Playlist
   await db.exec(`

@@ -38,18 +38,18 @@ export default function DashboardPage() {
     setError('');
 
     try {
-      const [playlistRes, analyticsRes] = await Promise.all([
-        getPlaylistDetails(selectedPlaylist.id),
-        getAnalytics(selectedPlaylist.id)
-      ]);
-
-      // Backend retorna { playlist, members, songs, user_role }
+      const playlistRes = await getPlaylistDetails(selectedPlaylist.id);
       const details = playlistRes.data;
-      setSongs(details.songs || [] as Song[]);
-      
-      // Analytics retorna { playlist, stats { total_songs, total_members, ... } }
-      const analyticsData = analyticsRes.data?.stats || analyticsRes.data;
-      setAnalytics(analyticsData as AnalyticsStats);
+      setSongs(details.songs || ([] as Song[]));
+
+      try {
+        const analyticsRes = await getAnalytics(selectedPlaylist.id);
+        const analyticsData = analyticsRes.data?.stats || analyticsRes.data;
+        setAnalytics(analyticsData as AnalyticsStats);
+      } catch (analyticsErr) {
+        console.warn('Analytics error:', analyticsErr);
+        setAnalytics(null);
+      }
     } catch (err: any) {
       console.error('Error loading playlist:', err);
       setError('Erro ao carregar dados da playlist');

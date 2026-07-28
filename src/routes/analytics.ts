@@ -25,13 +25,6 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
       return;
     }
 
-    // RESTRIÇÃO: Apenas moderadores e admins podem ver analytics
-    if (!['admin', 'moderator'].includes(membership.role)) {
-      console.log(`[Analytics] User ${userId} is ${membership.role}, not authorized to view analytics`);
-      res.status(403).json({ error: 'Only moderators and admins can view analytics' });
-      return;
-    }
-
     const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
 
     if (!playlist) {
