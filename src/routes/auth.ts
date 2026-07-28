@@ -52,7 +52,7 @@ router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Resp
     res.status(201).json({
       message: 'User registered successfully',
       token,
-      user: { id: userId, email, name, role: 'user' }
+      user: { id: userId, email, name, role: 'member' }
     });
   } catch (error) {
     console.error('Register error:', error);

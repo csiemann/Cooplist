@@ -9,7 +9,7 @@ const router = Router();
 router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
-    const { role = 'user', expiresIn = 7, maxUses } = req.body;
+    const { role = 'member', expiresIn = 7, maxUses } = req.body;
     const userId = req.user?.userId;
     const db = getDatabase();
 
@@ -52,55 +52,55 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
 });
 
 // Gerar convite por email
-router.post('/:playlistId/invite-email', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { playlistId } = req.params;
-    const { email, role = 'user' } = req.body;
-    const userId = req.user?.userId;
-    const db = getDatabase();
-
-    if (!email) {
-      res.status(400).json({ error: 'Email is required' });
-      return;
-    }
-
-    // Verificar permissão
-    const membership = await db.get(
-      'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
-      [playlistId, userId]
-    );
-
-    if (!membership || !['admin', 'moderator'].includes(membership.role)) {
-      res.status(403).json({ error: 'Only admins/moderators can send invites' });
-      return;
-    }
-
-    const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 dias
-
-    const result = await db.run(
-      `INSERT INTO invites (playlist_id, email, token, role, created_by, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [playlistId, email, token, role, userId, expiresAt.toISOString()]
-    );
-
-    // TODO: Enviar email com link de convite
-    // sendInviteEmail(email, token, playlist.name);
-
-    const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
-    const inviteLink = `${frontendBaseUrl}/join/${token}`;
-
-    res.json({
-      message: 'Invite sent successfully',
-      invite_id: result.lastID,
-      email,
-      invite_link: inviteLink
-    });
-  } catch (error) {
-    console.error('Error creating email invite:', error);
-    res.status(500).json({ error: 'Failed to create invite' });
-  }
-});
+// router.post('/:playlistId/invite-email', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+//   try {
+//     const { playlistId } = req.params;
+//     const { email, role = 'member' } = req.body;
+//     const userId = req.user?.userId;
+//     const db = getDatabase();
+//
+//     if (!email) {
+//       res.status(400).json({ error: 'Email is required' });
+//       return;
+//     }
+//
+//     // Verificar permissão
+//     const membership = await db.get(
+//       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+//       [playlistId, userId]
+//     );
+//
+//     if (!membership || !['admin', 'moderator'].includes(membership.role)) {
+//       res.status(403).json({ error: 'Only admins/moderators can send invites' });
+//       return;
+//     }
+//
+//     const token = uuidv4();
+//     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 dias
+//
+//     const result = await db.run(
+//       `INSERT INTO invites (playlist_id, email, token, role, created_by, expires_at)
+//        VALUES (?, ?, ?, ?, ?, ?)`,
+//       [playlistId, email, token, role, userId, expiresAt.toISOString()]
+//     );
+//
+//     // TODO: Enviar email com link de convite
+//     // sendInviteEmail(email, token, playlist.name);
+//
+//     const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
+//     const inviteLink = `${frontendBaseUrl}/join/${token}`;
+//
+//     res.json({
+//       message: 'Invite sent successfully',
+//       invite_id: result.lastID,
+//       email,
+//       invite_link: inviteLink
+//     });
+//   } catch (error) {
+//     console.error('Error creating email invite:', error);
+//     res.status(500).json({ error: 'Failed to create invite' });
+//   }
+// });
 
 // Aceitar convite
 router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -167,6 +167,15 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
       [invite.playlist_id, 'user_joined', userId, JSON.stringify({ role: invite.role })]
     );
 
+    // Notificar outros membros da playlist em tempo real
+    const { io } = require('../index');
+    if (io) {
+      io.to(`playlist:${invite.playlist_id}`).emit('member_joined', {
+        playlist_id: invite.playlist_id,
+        user_id: userId,
+        role: invite.role,
+      });
+    }
     res.json({ message: 'Successfully joined playlist' });
   } catch (error) {
     console.error('Error accepting invite:', error);

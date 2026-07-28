@@ -105,7 +105,7 @@
 [ ] CI/CD pipeline
 ```
 
-### v2.3.0 (2-3 semanas)
+### v2.3.1 (2-3 semanas)
 ```
 [ ] Deployment em produção
 [ ] Admin dashboard

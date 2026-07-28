@@ -13,7 +13,18 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
 
     console.log(`[Analytics] Fetching for playlist ${playlistId}, user ${userId}`);
 
-    // Verificar acesso
+    const playlist = await db.get('SELECT created_by FROM playlists WHERE id = ?', [playlistId]);
+
+    // Verificar se a playlist existe
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
+
+    // Verificar se o usuário é o dono da playlist
+    const isOwner = playlist.created_by === userId;
+
+    // Verificar se o usuário é membro e qual a sua role
     const membership = await db.get(
       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]

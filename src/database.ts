@@ -22,7 +22,7 @@ export async function initDatabase(): Promise<Database> {
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT DEFAULT 'user',
+      role TEXT DEFAULT 'member',
       is_banned INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -30,12 +30,12 @@ export async function initDatabase(): Promise<Database> {
 
   // Ensure legacy databases have the 'role' and 'is_banned' columns
   await db.exec(`
-    ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'
-  `).catch(() => {});
+    ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'member'
+  `).catch(() => { });
 
   await db.exec(`
     ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0
-  `).catch(() => {});
+  `).catch(() => { });
 
   // Seed test users if they do not already exist
   const adminEmail = 'admin@admin.com';
@@ -81,7 +81,7 @@ export async function initDatabase(): Promise<Database> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       playlist_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
-      role TEXT DEFAULT 'user',
+      role TEXT DEFAULT 'member',
       joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(playlist_id, user_id),
       FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
@@ -96,7 +96,7 @@ export async function initDatabase(): Promise<Database> {
       playlist_id INTEGER NOT NULL,
       email TEXT,
       token TEXT UNIQUE NOT NULL,
-      role TEXT DEFAULT 'user',
+      role TEXT DEFAULT 'member',
       created_by INTEGER NOT NULL,
       expires_at DATETIME,
       used_at DATETIME,
@@ -110,11 +110,11 @@ export async function initDatabase(): Promise<Database> {
 
   await db.exec(`
     ALTER TABLE invites ADD COLUMN max_uses INTEGER
-  `).catch(() => {});
+  `).catch(() => { });
 
   await db.exec(`
     ALTER TABLE invites ADD COLUMN uses INTEGER DEFAULT 0
-  `).catch(() => {});
+  `).catch(() => { });
 
   // Musicas na Playlist
   await db.exec(`

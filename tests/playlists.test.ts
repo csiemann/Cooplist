@@ -16,7 +16,7 @@ describe('Playlists API - Basic Tests', () => {
     const canPerformAction = (role: string, action: string): boolean => {
       if (role === 'admin') return true;
       if (role === 'moderator' && ['add_song', 'remove_song', 'add_member', 'remove_member'].includes(action)) return true;
-      if (role === 'user' && action === 'add_song') return true;
+      if (role === 'member' && action === 'add_song') return true;
       return false;
     };
 
@@ -35,25 +35,25 @@ describe('Playlists API - Basic Tests', () => {
       expect(canPerformAction('moderator', 'change_role')).toBe(false);
     });
 
-    it('user can only add songs', () => {
-      expect(canPerformAction('user', 'add_song')).toBe(true);
-      expect(canPerformAction('user', 'remove_song')).toBe(false);
-      expect(canPerformAction('user', 'change_role')).toBe(false);
-      expect(canPerformAction('user', 'remove_member')).toBe(false);
+    it('member can only add songs', () => {
+      expect(canPerformAction('member', 'add_song')).toBe(true);
+      expect(canPerformAction('member', 'remove_song')).toBe(false);
+      expect(canPerformAction('member', 'change_role')).toBe(false);
+      expect(canPerformAction('member', 'remove_member')).toBe(false);
     });
   });
 
   describe('Member Roles', () => {
     it('should have valid role types', () => {
-      const validRoles = ['admin', 'moderator', 'user'];
+      const validRoles = ['admin', 'moderator', 'member'];
       
       expect(validRoles.includes('admin')).toBe(true);
       expect(validRoles.includes('moderator')).toBe(true);
-      expect(validRoles.includes('user')).toBe(true);
+      expect(validRoles.includes('member')).toBe(true);
     });
 
     it('should reject invalid role', () => {
-      const validRoles = ['admin', 'moderator', 'user'];
+      const validRoles = ['admin', 'moderator', 'member'];
       const invalidRole = 'superuser';
 
       expect(validRoles.includes(invalidRole)).toBe(false);

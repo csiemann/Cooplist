@@ -1,3 +1,5 @@
+import { describe, it, expect } from '@jest/globals';
+
 describe('Songs API - Basic Tests', () => {
   describe('Song Validation', () => {
     it('should accept valid song data', () => {
@@ -44,8 +46,8 @@ describe('Songs API - Basic Tests', () => {
       expect(canRemoveSong('moderator')).toBe(true);
     });
 
-    it('user cannot remove songs', () => {
-      expect(canRemoveSong('user')).toBe(false);
+    it('member cannot remove songs', () => {
+      expect(canRemoveSong('member')).toBe(false);
     });
   });
 

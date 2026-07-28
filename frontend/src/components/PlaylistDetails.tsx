@@ -152,7 +152,7 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {/* <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Convidar por email" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white' }} />*/}
               <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} style={{ flex: '1 1 140px', padding: '10px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white' }}>
-                <option value="user">Usuário</option>
+                <option value="member">Usuário</option>
                 <option value="moderator">Moderador</option>
               </select>
               <button type="button" onClick={handleCreateLink} style={{ flex: '1 1 180px', padding: '10px 12px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer' }}>Gerar link de convite</button>
