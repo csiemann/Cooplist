@@ -36,6 +36,19 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
       const joinRole = (userRow.role && ['admin', 'moderator'].includes(userRow.role)) ? userRow.role : 'member';
       const insertRes = await db.run('INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)', [playlistId, userId, joinRole]);
       membership = { id: insertRes.lastID, role: joinRole };
+
+      // Analytics for user_joined
+      await db.run(
+        'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
+        [playlistId, 'user_joined', userId, JSON.stringify({ role: joinRole, auto_joined: true })]
+      );
+
+      // Notificar via WebSocket
+      io?.to(`playlist:${playlistId}`).emit('member_joined', {
+        playlist_id: playlistId,
+        user_id: userId,
+        role: joinRole
+      });
     }
 
     // Verificar limite
@@ -53,14 +66,36 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
       }
     }
 
-    // Verificar duplicatas - mesma música não pode ser adicionada duas vezes
+    // Verificar se o usuário foi banido da playlist
+    const userBan = await db.get(
+      'SELECT id FROM playlist_bans WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (userBan) {
+      res.status(403).json({ error: 'Você foi banido desta playlist' });
+      return;
+    }
+
+    // Verificar se a música foi banida da playlist
+    const bannedTrack = await db.get(
+      'SELECT id FROM playlist_songs WHERE playlist_id = ? AND spotify_track_id = ? AND is_banned = 1',
+      [playlistId, spotify_track_id]
+    );
+
+    if (bannedTrack) {
+      res.status(400).json({ error: 'Esta música foi banida desta playlist' });
+      return;
+    }
+
+    // Verificar duplicatas na fila ativa (não banidas)
     const existingSong = await db.get(
-      'SELECT id FROM playlist_songs WHERE playlist_id = ? AND spotify_track_id = ?',
+      'SELECT id FROM playlist_songs WHERE playlist_id = ? AND spotify_track_id = ? AND (is_banned IS NULL OR is_banned = 0)',
       [playlistId, spotify_track_id]
     );
 
     if (existingSong) {
-      res.status(400).json({ error: 'This song is already in the playlist' });
+      res.status(400).json({ error: 'Esta música já está na fila da playlist' });
       return;
     }
 
@@ -89,6 +124,7 @@ router.post('/:playlistId/songs', authMiddleware, async (req: AuthRequest, res: 
       song,
       added_by_name: req.user?.email
     });
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.status(201).json({ message: 'Song added', song });
   } catch (error) {
@@ -134,6 +170,7 @@ router.delete('/:playlistId/songs/:songId', authMiddleware, async (req: AuthRequ
 
     // Notificar via WebSocket
     io?.to(`playlist:${playlistId}`).emit('song_removed', { song_id: songId });
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.json({ message: 'Song removed' });
   } catch (error) {
@@ -180,6 +217,10 @@ router.post('/:playlistId/songs/:songId/ban', authMiddleware, async (req: AuthRe
       'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
       [playlistId, 'song_banned', userId, JSON.stringify({ track_name: song.track_name })]
     );
+
+    // Notificar via WebSocket
+    io?.to(`playlist:${playlistId}`).emit('song_banned', { song_id: songId });
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.json({ message: 'Song banned' });
   } catch (error) {

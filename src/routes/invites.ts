@@ -36,6 +36,11 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
     const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
     const inviteLink = `${frontendBaseUrl}/join/${token}`;
 
+    const { io } = require('../index');
+    if (io) {
+      io.to(`playlist:${playlistId}`).emit('invite_created', { playlist_id: playlistId });
+    }
+
     res.json({
       invite_id: result.lastID,
       link: inviteLink,
@@ -147,17 +152,17 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
       [invite.playlist_id, userId, invite.role]
     );
 
-    // Incrementar uso do convite (não marcar como "usado" se tiver max_uses)
-    if (invite.max_uses) {
+    // Incrementar uso do convite e desativar apenas se atingir o limite max_uses
+    const newUses = (invite.uses || 0) + 1;
+    if (invite.max_uses && newUses >= invite.max_uses) {
       await db.run(
-        'UPDATE invites SET uses = uses + 1 WHERE id = ?',
-        invite.id
+        'UPDATE invites SET uses = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [newUses, invite.id]
       );
     } else {
-      // Se não tiver limite, marcar como usado
       await db.run(
-        'UPDATE invites SET used_at = CURRENT_TIMESTAMP WHERE id = ?',
-        invite.id
+        'UPDATE invites SET uses = ? WHERE id = ?',
+        [newUses, invite.id]
       );
     }
 
@@ -174,6 +179,9 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
         playlist_id: invite.playlist_id,
         user_id: userId,
         role: invite.role,
+      });
+      io.to(`playlist:${invite.playlist_id}`).emit('analytics_updated', {
+        playlist_id: invite.playlist_id,
       });
     }
     res.json({ message: 'Successfully joined playlist' });
@@ -246,6 +254,11 @@ router.delete('/:playlistId/invites/:inviteId', authMiddleware, async (req: Auth
     }
 
     await db.run('DELETE FROM invites WHERE id = ? AND playlist_id = ?', [inviteId, playlistId]);
+
+    const { io } = require('../index');
+    if (io) {
+      io.to(`playlist:${playlistId}`).emit('invite_revoked', { playlist_id: playlistId, invite_id: inviteId });
+    }
 
     res.json({ message: 'Invite revoked' });
   } catch (error) {

@@ -1,7 +1,7 @@
 
 import request from 'supertest';
 import express from 'express';
-import { initDatabase, getDatabase } from '../src/database';
+import { initDatabase, getDatabase, closeDatabase } from '../src/database';
 import playlistRoutes from '../src/routes/playlists';
 import { authMiddleware } from '../src/middleware/authMiddleware';
 import jwt from 'jsonwebtoken';
@@ -32,20 +32,27 @@ let ownerId: number;
 let memberId: number;
 
 beforeAll(async () => {
+    await closeDatabase();
     await initDatabase();
     const db = getDatabase();
 
+    const timestamp = Date.now();
+    const ownerEmail = `owner_${timestamp}@test.com`;
+    const memberEmail = `member_${timestamp}@test.com`;
+
     // Create owner user
     const ownerPassword = await bcrypt.hash('password123', 10);
-    const owner = await db.run('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', 'owner@test.com', ownerPassword, 'Owner', 'admin');
-    ownerId = owner.lastID!;
-    ownerToken = jwt.sign({ userId: ownerId, email: 'owner@test.com' }, process.env.JWT_SECRET || 'test-secret-key');
+    const ownerRes = await db.run('INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [ownerEmail, ownerPassword, 'Owner', 'admin']);
+    const ownerUser = await db.get('SELECT id FROM users WHERE email = ?', [ownerEmail]);
+    ownerId = ownerRes.lastID || ownerUser.id;
+    ownerToken = jwt.sign({ userId: ownerId, email: ownerEmail }, process.env.JWT_SECRET || 'test-secret-key');
 
     // Create member user
     const memberPassword = await bcrypt.hash('password123', 10);
-    const member = await db.run('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', 'member@test.com', memberPassword, 'Member', 'member');
-    memberId = member.lastID!;
-    memberToken = jwt.sign({ userId: memberId, email: 'member@test.com' }, process.env.JWT_SECRET || 'test-secret-key');
+    const memberRes = await db.run('INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [memberEmail, memberPassword, 'Member', 'member']);
+    const memberUser = await db.get('SELECT id FROM users WHERE email = ?', [memberEmail]);
+    memberId = memberRes.lastID || memberUser.id;
+    memberToken = jwt.sign({ userId: memberId, email: memberEmail }, process.env.JWT_SECRET || 'test-secret-key');
 });
 
 describe('Playlists API', () => {
@@ -62,11 +69,11 @@ describe('Playlists API', () => {
         const playlistId = createPlaylistResponse.body.playlist.id;
 
         // Manually set is_public to 0
-        await db.run('UPDATE playlists SET is_public = 0 WHERE id = ?', playlistId);
+        await db.run('UPDATE playlists SET is_public = 0 WHERE id = ?', [playlistId]);
 
 
         // 2. Add the member to the playlist
-        await db.run('INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)', playlistId, memberId, 'member');
+        await db.run('INSERT INTO playlist_members (playlist_id, user_id, role) VALUES (?, ?, ?)', [playlistId, memberId, 'member']);
 
         // 3. Member tries to access the playlist
         const getPlaylistResponse = await request(app)

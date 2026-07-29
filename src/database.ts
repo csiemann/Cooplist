@@ -5,11 +5,22 @@ import bcrypt from 'bcryptjs';
 
 let db: Database | null = null;
 
+export async function closeDatabase(): Promise<void> {
+  if (db) {
+    try {
+      await db.close();
+    } catch {}
+    db = null;
+  }
+}
+
 export async function initDatabase(): Promise<Database> {
   if (db) return db;
 
+  const dbPath = process.env.DATABASE_URL || (process.env.NODE_ENV === 'test' ? ':memory:' : path.join(process.cwd(), 'cooplist.db'));
+
   db = await open({
-    filename: path.join(process.cwd(), 'cooplist.db'),
+    filename: dbPath,
     driver: sqlite3.Database
   });
 
@@ -41,23 +52,17 @@ export async function initDatabase(): Promise<Database> {
   const adminEmail = 'admin@admin.com';
   const moderatorEmail = 'moderador@moderador.com';
 
-  const adminExists = await db.get('SELECT id FROM users WHERE email = ?', adminEmail);
-  if (!adminExists) {
-    const passwordHash = await bcrypt.hash('admin1', 10);
-    await db.run(
-      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
-      [adminEmail, passwordHash, 'Admin', 'admin']
-    );
-  }
+  const passwordHashAdmin = await bcrypt.hash('admin1', 10);
+  await db.run(
+    'INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+    [adminEmail, passwordHashAdmin, 'Admin', 'admin']
+  );
 
-  const moderatorExists = await db.get('SELECT id FROM users WHERE email = ?', moderatorEmail);
-  if (!moderatorExists) {
-    const passwordHash = await bcrypt.hash('moderador', 10);
-    await db.run(
-      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
-      [moderatorEmail, passwordHash, 'Moderador', 'moderator']
-    );
-  }
+  const passwordHashMod = await bcrypt.hash('moderador', 10);
+  await db.run(
+    'INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+    [moderatorEmail, passwordHashMod, 'Moderador', 'moderator']
+  );
 
   // Playlists
   await db.exec(`
@@ -162,6 +167,27 @@ export async function initDatabase(): Promise<Database> {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Banimentos de membros em playlists
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS playlist_bans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      playlist_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      banned_by INTEGER NOT NULL,
+      reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(playlist_id, user_id),
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (banned_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Column fallback for playlist_songs is_banned
+  await db.exec(`
+    ALTER TABLE playlist_songs ADD COLUMN is_banned INTEGER DEFAULT 0
+  `).catch(() => { });
 
   console.log('✅ Database initialized');
   return db;

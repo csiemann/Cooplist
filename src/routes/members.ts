@@ -111,6 +111,9 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
     // Apenas remover (membro pode entrar novamente)
     await db.run('DELETE FROM playlist_members WHERE id = ? AND playlist_id = ?', [memberId, playlistId]);
 
+    // Remover músicas adicionadas pelo membro removido
+    await db.run('DELETE FROM playlist_songs WHERE playlist_id = ? AND added_by = ?', [playlistId, member.user_id]);
+
     // Analytics
     await db.run(
       'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
@@ -122,6 +125,8 @@ router.delete('/:playlistId/members/:memberId', authMiddleware, async (req: Auth
       member_id: memberId,
       user_id: member.user_id
     });
+    io?.to(`playlist:${playlistId}`).emit('song_removed', { playlist_id: playlistId });
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.json({ message: 'Member removed' });
   } catch (error) {
@@ -174,6 +179,9 @@ router.post('/:playlistId/members/:memberId/ban', authMiddleware, async (req: Au
     // Remover da playlist
     await db.run('DELETE FROM playlist_members WHERE id = ? AND playlist_id = ?', [memberId, playlistId]);
 
+    // Remover músicas adicionadas pelo membro banido
+    await db.run('DELETE FROM playlist_songs WHERE playlist_id = ? AND added_by = ?', [playlistId, member.user_id]);
+
     // Analytics
     await db.run(
       'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
@@ -186,6 +194,8 @@ router.post('/:playlistId/members/:memberId/ban', authMiddleware, async (req: Au
       user_id: member.user_id,
       reason
     });
+    io?.to(`playlist:${playlistId}`).emit('song_removed', { playlist_id: playlistId });
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.json({ message: 'Member banned' });
   } catch (error) {
@@ -222,6 +232,9 @@ router.post('/:playlistId/members/:userId/unban', authMiddleware, async (req: Au
       'INSERT INTO analytics (playlist_id, event_type, user_id, data) VALUES (?, ?, ?, ?)',
       [playlistId, 'member_unbanned', bannerUserId, JSON.stringify({})]
     );
+
+    // Notificar via WebSocket
+    io?.to(`playlist:${playlistId}`).emit('analytics_updated', { playlist_id: playlistId });
 
     res.json({ message: 'Member unbanned' });
   } catch (error) {

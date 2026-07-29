@@ -22,8 +22,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
+COPY tsconfig.json ./
+COPY jest.config.js ./
 
-RUN npm install --omit=dev
+RUN npm install
+
+COPY src ./src
+COPY tests ./tests
 
 COPY --from=builder /app/dist ./dist
 # Copy built frontend to public so Express can serve it

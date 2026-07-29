@@ -13,7 +13,7 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
 
     console.log(`[Analytics] Fetching for playlist ${playlistId}, user ${userId}`);
 
-    const playlist = await db.get('SELECT created_by FROM playlists WHERE id = ?', [playlistId]);
+    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', [playlistId]);
 
     // Verificar se a playlist existe
     if (!playlist) {
@@ -33,14 +33,6 @@ router.get('/:playlistId/analytics', authMiddleware, async (req: AuthRequest, re
     if (!membership) {
       console.log(`[Analytics] Access denied for user ${userId} on playlist ${playlistId}`);
       res.status(403).json({ error: 'Access denied' });
-      return;
-    }
-
-    const playlist = await db.get('SELECT * FROM playlists WHERE id = ?', playlistId);
-
-    if (!playlist) {
-      console.log(`[Analytics] Playlist ${playlistId} not found`);
-      res.status(404).json({ error: 'Playlist not found' });
       return;
     }
 

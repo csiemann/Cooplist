@@ -202,6 +202,44 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise
   }
 });
 
+// Obter versão da playlist (para observador de alterações)
+router.get('/:playlistId/version', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playlistId } = req.params;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    const playlist = await db.get('SELECT id, is_public FROM playlists WHERE id = ?', playlistId);
+
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist not found' });
+      return;
+    }
+
+    if (playlist.is_public !== 1) {
+      const membership = await db.get(
+        'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
+        [playlistId, userId]
+      );
+      if (!membership) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+    }
+
+    const lastEvent = await db.get('SELECT MAX(id) as max_id FROM analytics WHERE playlist_id = ?', playlistId);
+    const songStats = await db.get('SELECT COUNT(*) as count, MAX(id) as max_id FROM playlist_songs WHERE playlist_id = ?', playlistId);
+    const memberStats = await db.get('SELECT COUNT(*) as count FROM playlist_members WHERE playlist_id = ?', playlistId);
+
+    const version = `${lastEvent?.max_id || 0}-${songStats?.count || 0}-${songStats?.max_id || 0}-${memberStats?.count || 0}`;
+
+    res.json({ version });
+  } catch (error) {
+    console.error('Error fetching playlist version:', error);
+    res.status(500).json({ error: 'Failed to fetch playlist version' });
+  }
+});
+
 // Obter detalhes da playlist
 router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -218,17 +256,25 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       return;
     }
 
-    // Verificar acesso
+    // Verificar se o usuário foi banido
+    const ban = await db.get(
+      'SELECT id FROM playlist_bans WHERE playlist_id = ? AND user_id = ?',
+      [playlistId, userId]
+    );
+
+    if (ban) {
+      res.status(403).json({ error: 'You have been banned from this playlist' });
+      return;
+    }
+
     const membership = await db.get(
       'SELECT role FROM playlist_members WHERE playlist_id = ? AND user_id = ?',
       [playlistId, userId]
     );
 
-    console.log('membership: ', membership);
-
-    // Se a playlist não for pública, o usuário deve ser membro
-    if (playlist.is_public !== 1 && !membership) {
-      res.status(403).json({ error: 'Access denied to private playlist' });
+    // Se o usuário não for membro e não for o criador, negar acesso
+    if (!membership && playlist.created_by !== userId) {
+      res.status(403).json({ error: 'Access denied: You are not a member of this playlist' });
       return;
     }
 
@@ -245,7 +291,7 @@ router.get('/:playlistId', authMiddleware, async (req: AuthRequest, res: Respons
       `SELECT ps.*, u.name as added_by_name
        FROM playlist_songs ps
        JOIN users u ON ps.added_by = u.id
-       WHERE ps.playlist_id = ?
+       WHERE ps.playlist_id = ? AND (ps.is_banned IS NULL OR ps.is_banned = 0)
        ORDER BY ps.position_in_queue ASC, ps.priority DESC, ps.created_at ASC`,
       playlistId
     );

@@ -2,32 +2,31 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { acceptInvite } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useToast } from '../components/Toast';
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
   const { user } = useAuthStore();
+  const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleAccept = async () => {
     if (!token) {
-      setStatus('error');
-      setMessage('Token de convite inválido.');
+      showError('Token de convite inválido.');
       return;
     }
 
-    setStatus('loading');
-    setMessage('');
+    setLoading(true);
 
     try {
       await acceptInvite(token);
-      setStatus('success');
-      setMessage('Convite aceito com sucesso! Você já pode acessar a playlist.');
+      showSuccess('Convite aceito com sucesso! Você já pode acessar a playlist.');
       setTimeout(() => navigate('/'), 1200);
     } catch (error: any) {
-      setStatus('error');
-      setMessage(error?.response?.data?.error || 'Não foi possível aceitar o convite.');
+      showError(error?.response?.data?.error || 'Não foi possível aceitar o convite.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -44,19 +43,13 @@ export default function AcceptInvitePage() {
             <p style={{ margin: 0, color: '#cbd8ee' }}>Clique no botão abaixo para confirmar sua participação na playlist vinculada a este convite.</p>
           </div>
 
-          {message && (
-            <div style={{ padding: '14px 16px', borderRadius: '12px', background: status === 'error' ? '#631b1b' : '#1b472b', color: 'white' }}>
-              {message}
-            </div>
-          )}
-
           <button
             type="button"
             onClick={handleAccept}
-            disabled={status === 'loading'}
-            style={{ padding: '14px', borderRadius: '12px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer' }}
+            disabled={loading}
+            style={{ padding: '14px', borderRadius: '12px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
           >
-            {status === 'loading' ? 'Aceitando...' : 'Aceitar convite'}
+            {loading ? 'Aceitando...' : 'Aceitar convite'}
           </button>
 
           <button

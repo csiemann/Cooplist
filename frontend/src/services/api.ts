@@ -35,6 +35,8 @@ export const getPlaylistDetails = (playlistId: number) => api.get(`/playlists/${
 
 export const getAnalytics = (playlistId: number) => api.get(`/playlists/${playlistId}/analytics`);
 
+export const getPlaylistVersion = (playlistId: number) => api.get(`/playlists/${playlistId}/version`);
+
 export const searchSpotify = (q: string, limit = 20) => api.get('/search', { params: { q, limit } });
 
 export const addSongToPlaylist = (playlistId: number, payload: Record<string, unknown>) =>
