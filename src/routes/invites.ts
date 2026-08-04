@@ -3,13 +3,15 @@ import { getDatabase } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 import { v4 as uuidv4 } from 'uuid';
 
+import { io } from '../index';
+
 const router = Router();
 
 // Gerar convite por link (reutilizável)
 router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { playlistId } = req.params;
-    const { role = 'member', expiresIn = 7, maxUses } = req.body;
+    const { role = 'member', expiresIn, expiresAt: inputExpiresAt, maxUses, description } = req.body;
     const userId = req.user?.userId;
     const db = getDatabase();
 
@@ -25,28 +27,34 @@ router.post('/:playlistId/invite-link', authMiddleware, async (req: AuthRequest,
     }
 
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000);
+    let expiresAt: Date | null = null;
+
+    if (inputExpiresAt) {
+      expiresAt = new Date(inputExpiresAt);
+    } else if (expiresIn !== undefined && expiresIn !== null && expiresIn !== '') {
+      expiresAt = new Date(Date.now() + Number(expiresIn) * 24 * 60 * 60 * 1000);
+    } else {
+      expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    }
 
     const result = await db.run(
-      `INSERT INTO invites (playlist_id, token, role, created_by, expires_at, max_uses)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [playlistId, token, role, userId, expiresAt.toISOString(), maxUses || null]
+      `INSERT INTO invites (playlist_id, token, role, created_by, expires_at, max_uses, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [playlistId, token, role, userId, expiresAt ? expiresAt.toISOString() : null, maxUses || null, description || null]
     );
 
     const frontendBaseUrl = (process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173').replace(/\/$/, '');
     const inviteLink = `${frontendBaseUrl}/join/${token}`;
 
-    const { io } = require('../index');
-    if (io) {
-      io.to(`playlist:${playlistId}`).emit('invite_created', { playlist_id: playlistId });
-    }
+    io?.to(`playlist:${playlistId}`).emit('invite_created', { playlist_id: playlistId });
 
     res.json({
       invite_id: result.lastID,
       link: inviteLink,
       token,
       role,
-      expires_at: expiresAt,
+      description: description || null,
+      expires_at: expiresAt ? expiresAt.toISOString() : null,
       max_uses: maxUses || null,
       uses: 0
     });
@@ -173,17 +181,14 @@ router.post('/accept/:token', authMiddleware, async (req: AuthRequest, res: Resp
     );
 
     // Notificar outros membros da playlist em tempo real
-    const { io } = require('../index');
-    if (io) {
-      io.to(`playlist:${invite.playlist_id}`).emit('member_joined', {
-        playlist_id: invite.playlist_id,
-        user_id: userId,
-        role: invite.role,
-      });
-      io.to(`playlist:${invite.playlist_id}`).emit('analytics_updated', {
-        playlist_id: invite.playlist_id,
-      });
-    }
+    io?.to(`playlist:${invite.playlist_id}`).emit('member_joined', {
+      playlist_id: invite.playlist_id,
+      user_id: userId,
+      role: invite.role,
+    });
+    io?.to(`playlist:${invite.playlist_id}`).emit('analytics_updated', {
+      playlist_id: invite.playlist_id,
+    });
     res.json({ message: 'Successfully joined playlist' });
   } catch (error) {
     console.error('Error accepting invite:', error);
@@ -210,7 +215,7 @@ router.get('/:playlistId/invites', authMiddleware, async (req: AuthRequest, res:
     }
 
     const invites = await db.all(
-      `SELECT id, email, role, created_by, expires_at, used_at, max_uses, uses, created_at, token
+      `SELECT id, email, role, created_by, expires_at, used_at, max_uses, uses, created_at, token, description
        FROM invites
        WHERE playlist_id = ?
        ORDER BY created_at DESC`,
@@ -255,10 +260,7 @@ router.delete('/:playlistId/invites/:inviteId', authMiddleware, async (req: Auth
 
     await db.run('DELETE FROM invites WHERE id = ? AND playlist_id = ?', [inviteId, playlistId]);
 
-    const { io } = require('../index');
-    if (io) {
-      io.to(`playlist:${playlistId}`).emit('invite_revoked', { playlist_id: playlistId, invite_id: inviteId });
-    }
+    io?.to(`playlist:${playlistId}`).emit('invite_revoked', { playlist_id: playlistId, invite_id: inviteId });
 
     res.json({ message: 'Invite revoked' });
   } catch (error) {

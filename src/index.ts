@@ -11,6 +11,7 @@ import songsRoutes from './routes/songs';
 import membersRoutes from './routes/members';
 import analyticsRoutes from './routes/analytics';
 import searchRoutes from './routes/search';
+import favoritesRoutes from './routes/favorites';
 import spotifyService from './services/spotifyService';
 
 const app = express();
@@ -20,6 +21,26 @@ const PORT = process.env.PORT || 3000;
 // Socket.io
 export const io = new SocketIOServer(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
+});
+
+io.on('connection', (socket) => {
+  console.log(`[Socket.io] Client connected: ${socket.id}`);
+
+  socket.on('join_playlist', (playlistId: string | number) => {
+    const room = `playlist:${playlistId}`;
+    socket.join(room);
+    console.log(`[Socket.io] Socket ${socket.id} joined room ${room}`);
+  });
+
+  socket.on('leave_playlist', (playlistId: string | number) => {
+    const room = `playlist:${playlistId}`;
+    socket.leave(room);
+    console.log(`[Socket.io] Socket ${socket.id} left room ${room}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[Socket.io] Client disconnected: ${socket.id}`);
+  });
 });
 
 // Middleware
@@ -68,6 +89,7 @@ app.use('/api/playlists', membersRoutes);
 app.use('/api/playlists', playlistRoutes);
 
 app.use('/api/search', searchRoutes);
+app.use('/api/favorites', favoritesRoutes);
 
 // Health check
 app.get('/api/health', async (req: Request, res: Response): Promise<void> => {

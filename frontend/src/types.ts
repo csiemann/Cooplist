@@ -45,3 +45,14 @@ export interface SongByUser {
   name: string;
   count: number;
 }
+
+export interface Favorite {
+  id: number;
+  user_id: number;
+  spotify_track_id: string;
+  track_name: string;
+  artist_name: string;
+  track_duration_ms?: number;
+  spotify_url?: string;
+  added_at?: string;
+}

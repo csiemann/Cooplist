@@ -85,4 +85,23 @@ router.delete('/:favoriteId', authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
+// Remover dos favoritos por spotify_track_id
+router.delete('/track/:spotifyTrackId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { spotifyTrackId } = req.params;
+    const userId = req.user?.userId;
+    const db = getDatabase();
+
+    await db.run(
+      'DELETE FROM user_favorites WHERE user_id = ? AND spotify_track_id = ?',
+      [userId, spotifyTrackId]
+    );
+
+    res.json({ message: 'Favorite removed' });
+  } catch (error) {
+    console.error('Error removing favorite by track id:', error);
+    res.status(500).json({ error: 'Failed to remove favorite' });
+  }
+});
+
 export default router;

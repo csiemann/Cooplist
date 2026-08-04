@@ -53,8 +53,10 @@ export const getMembers = (playlistId: number) => api.get(`/playlists/${playlist
 export const inviteMember = (playlistId: number, payload: { email: string; role?: string }) =>
   api.post(`/playlists/${playlistId}/invite-email`, payload);
 
-export const createInviteLink = (playlistId: number, payload: { role?: string; maxUses?: number }) =>
-  api.post(`/playlists/${playlistId}/invite-link`, payload);
+export const createInviteLink = (
+  playlistId: number,
+  payload: { role?: string; maxUses?: number | null; expiresAt?: string | null; expiresIn?: number; description?: string }
+) => api.post(`/playlists/${playlistId}/invite-link`, payload);
 
 export const getInviteLinks = (playlistId: number) =>
   api.get(`/playlists/${playlistId}/invites`);
@@ -76,5 +78,21 @@ export const unbanMember = (playlistId: number, userId: number) =>
 
 export const syncPlaylistToSpotify = (playlistId: number, spotifyAccessToken: string) =>
   api.post(`/playlists/${playlistId}/sync-to-spotify`, { spotifyAccessToken });
+
+export const getFavorites = () => api.get('/favorites');
+
+export const addFavorite = (payload: {
+  spotify_track_id: string;
+  track_name: string;
+  artist_name: string;
+  track_duration_ms?: number;
+  spotify_url?: string;
+}) => api.post('/favorites', payload);
+
+export const removeFavorite = (favoriteId: number) =>
+  api.delete(`/favorites/${favoriteId}`);
+
+export const removeFavoriteByTrackId = (spotifyTrackId: string) =>
+  api.delete(`/favorites/track/${spotifyTrackId}`);
 
 export default api;

@@ -28,7 +28,10 @@ interface BanModal {
 export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProps) {
   const [members, setMembers] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
-  const [inviteLink, setInviteLink] = useState('');
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteDescription, setInviteDescription] = useState('');
+  const [inviteMaxUses, setInviteMaxUses] = useState('');
+  const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [banModal, setBanModal] = useState<BanModal>({ type: null, targetId: null, targetName: '' });
   const [banReason, setBanReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -37,8 +40,6 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
   const { showSuccess, showError } = useToast();
 
   useEffect(() => {
-    // Reset inviteLink ao mudar de playlist
-    setInviteLink('');
     loadMembers();
     loadInvites();
 
@@ -81,16 +82,32 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
     }
   };
 
-  const handleCreateLink = async () => {
-    setInviteLink('');
+  const handleOpenInviteModal = () => {
+    setInviteDescription('');
+    setInviteMaxUses('');
+    setInviteExpiresAt('');
+    setIsInviteModalOpen(true);
+  };
+
+  const handleCreateInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
 
     try {
-      const res = await createInviteLink(playlist.id, { role: 'member' });
-      setInviteLink(res.data.link);
-      showSuccess('Link de convite multiuso gerado!');
+      await createInviteLink(playlist.id, {
+        role: 'member',
+        description: inviteDescription.trim() || undefined,
+        maxUses: inviteMaxUses ? parseInt(inviteMaxUses, 10) : null,
+        expiresAt: inviteExpiresAt || null,
+      });
+
+      showSuccess('Link de convite gerado com sucesso!');
+      setIsInviteModalOpen(false);
       loadInvites();
     } catch (err: any) {
       showError(err?.response?.data?.error || 'Falha ao gerar link de convite');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -126,15 +143,6 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
     } catch (err: any) {
       showError(err?.response?.data?.error || 'Falha ao remover música');
     }
-  };
-
-  const openBanMemberModal = (member: any) => {
-    if (playlist.created_by === member.id) {
-      showError('Não é possível banir o dono da playlist');
-      return;
-    }
-    setBanModal({ type: 'member', targetId: member.id, targetName: member.name });
-    setBanReason('');
   };
 
   const openBanSongModal = (song: Song) => {
@@ -183,30 +191,12 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={handleCreateLink}
+                onClick={handleOpenInviteModal}
                 style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}
               >
-                + Gerar link de convite multiuso
+                + Gerar link de convite
               </button>
             </div>
-            {inviteLink && (
-              <div style={{ background: '#111c2b', padding: '12px', borderRadius: '10px', border: '1px solid #223449', wordBreak: 'break-all' }}>
-                <strong style={{ color: '#63d3ff' }}>Novo link gerado (multiuso):</strong>
-                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ flex: 1, fontSize: '13px', minWidth: '180px' }}>{inviteLink}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteLink);
-                      showSuccess('Link copiado para a área de transferência!');
-                    }}
-                    style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Copiar
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ color: '#9fb0c3', marginBottom: '12px' }}>Somente Administradores, Moderadores ou Donos podem convidar e gerenciar membros.</div>
@@ -220,12 +210,23 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
               {invites.map((inv) => {
                 const frontendBaseUrl = window.location.origin;
                 const fullLink = `${frontendBaseUrl}/join/${inv.token}`;
+                const formattedExpiration = inv.expires_at
+                  ? new Date(inv.expires_at).toLocaleDateString('pt-BR')
+                  : 'Sem expiração';
+
                 return (
-                  <div key={inv.id} style={{ background: '#0f1b2d', padding: '10px', borderRadius: '8px', border: '1px solid #223449', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div key={inv.id} style={{ background: '#0f1b2d', padding: '10px 12px', borderRadius: '8px', border: '1px solid #223449', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: '180px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, wordBreak: 'break-all' }}>{fullLink}</div>
-                      <div style={{ fontSize: '12px', color: '#9fb0c3', marginTop: '2px' }}>
-                        Usos: <strong>{inv.uses || 0}</strong> {inv.max_uses ? `/ ${inv.max_uses}` : '(Multiuso)'}
+                      {inv.description && (
+                        <div style={{ fontWeight: 700, color: '#63d3ff', fontSize: '13px', marginBottom: '2px' }}>
+                          {inv.description}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '13px', fontWeight: 600, wordBreak: 'break-all' }}>{fullLink}</div>
+                      <div style={{ fontSize: '12px', color: '#9fb0c3', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <span>Usos: <strong>{inv.uses || 0}</strong> {inv.max_uses ? `/ ${inv.max_uses}` : '(Multiuso)'}</span>
+                        <span>•</span>
+                        <span>Vencimento: <strong>{formattedExpiration}</strong></span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
@@ -281,14 +282,6 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
                     >
                       Remover
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openBanMemberModal(member)}
-                      style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
-                      title="Bane permanentemente a conta da playlist"
-                    >
-                      Banir
-                    </button>
                   </div>
                 )}
               </div>
@@ -334,6 +327,81 @@ export default function PlaylistDetails({ playlist, songs }: PlaylistDetailsProp
           )}
         </div>
       </section>
+
+      {/* Modal de Configuração de Convite */}
+      {isInviteModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 150 }}>
+          <div style={{ width: '100%', maxWidth: '440px', background: '#0f1b2d', border: '2px solid #3b82f6', borderRadius: '20px', padding: '24px', position: 'relative' }}>
+            <button type="button" onClick={() => setIsInviteModalOpen(false)} style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: '#9fb0c3', cursor: 'pointer', fontSize: '24px' }}>×</button>
+
+            <h3 style={{ marginTop: 0, color: '#3b82f6', fontSize: '18px' }}>
+              Gerar Link de Convite
+            </h3>
+
+            <form onSubmit={handleCreateInviteSubmit} style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#9fb0c3', fontSize: '13px', fontWeight: 600 }}>
+                  Descrição / Texto personalizado (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={inviteDescription}
+                  onChange={(e) => setInviteDescription(e.target.value)}
+                  placeholder="Ex: Convite para o grupo de trabalho"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#9fb0c3', fontSize: '13px', fontWeight: 600 }}>
+                  Quantos membros podem usar este link (usos)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={inviteMaxUses}
+                  onChange={(e) => setInviteMaxUses(e.target.value)}
+                  placeholder="Deixe em branco para ilimitado (multiuso)"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#9fb0c3', fontSize: '13px', fontWeight: 600 }}>
+                  Data para vencimento do link
+                </label>
+                <input
+                  type="date"
+                  value={inviteExpiresAt}
+                  onChange={(e) => setInviteExpiresAt(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #223449', background: '#111c2b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+                <div style={{ fontSize: '11px', color: '#63d3ff', marginTop: '4px' }}>
+                  Deixe em branco para o padrão de 7 dias de validade.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="submit"
+                  disabled={isProcessing}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                >
+                  {isProcessing ? 'Gerando...' : 'Gerar Link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(false)}
+                  disabled={isProcessing}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #223449', background: '#111c2b', color: 'white', cursor: 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Banimento */}
       {banModal.type && (

@@ -1,17 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
-import { getPlaylistDetails, getAnalytics, getPlaylistVersion, getPlaylists, addSongToPlaylist, searchSpotify } from '../services/api';
+import { getPlaylistDetails, getAnalytics, getPlaylistVersion, getPlaylists, addSongToPlaylist, searchSpotify, getFavorites, addFavorite, removeFavoriteByTrackId } from '../services/api';
 import { initSocket, joinPlaylistRoom, leavePlaylistRoom } from '../stores/playlistStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToast } from '../components/Toast';
 import PlaylistDetails from '../components/PlaylistDetails';
 import AnalyticsChart from '../components/AnalyticsChart';
 import { usePlaylistStore } from '../stores/playlistStore';
-import type { AnalyticsStats, Song } from '../types';
+import type { AnalyticsStats, Song, Favorite } from '../types';
 
 export default function DashboardPage() {
   const { selectedPlaylist, songs, setSongs, setPlaylists } = usePlaylistStore();
   const { showSuccess, showError } = useToast();
   const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
+  const [userFavorites, setUserFavorites] = useState<Favorite[]>([]);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,6 +39,46 @@ export default function DashboardPage() {
       setPlaylists(res.data || []);
     } catch {}
   };
+
+  const loadUserFavorites = async () => {
+    try {
+      const res = await getFavorites();
+      setUserFavorites(res.data || []);
+    } catch {
+      setUserFavorites([]);
+    }
+  };
+
+  const handleToggleFavoriteTrack = async (track: {
+    spotify_track_id: string;
+    track_name: string;
+    artist_name: string;
+    track_duration_ms?: number;
+  }) => {
+    const isFav = userFavorites.some(f => f.spotify_track_id === track.spotify_track_id);
+    try {
+      if (isFav) {
+        await removeFavoriteByTrackId(track.spotify_track_id);
+        setUserFavorites(prev => prev.filter(f => f.spotify_track_id !== track.spotify_track_id));
+        showSuccess(`"${track.track_name}" removida dos favoritos`);
+      } else {
+        await addFavorite({
+          spotify_track_id: track.spotify_track_id,
+          track_name: track.track_name,
+          artist_name: track.artist_name,
+          track_duration_ms: track.track_duration_ms || 0
+        });
+        showSuccess(`"${track.track_name}" adicionada aos favoritos!`);
+        await loadUserFavorites();
+      }
+    } catch {
+      showError('Erro ao atualizar favoritos');
+    }
+  };
+
+  useEffect(() => {
+    loadUserFavorites();
+  }, [user]);
 
   useEffect(() => {
     const socket = initSocket();
@@ -205,6 +246,21 @@ export default function DashboardPage() {
                         {song.artist_name || 'Artista desconhecido'} • por {song.added_by_name || 'Usuário'}
                       </div>
                     </div>
+                    {song.spotify_track_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavoriteTrack({
+                          spotify_track_id: song.spotify_track_id!,
+                          track_name: song.track_name,
+                          artist_name: song.artist_name || 'Artista desconhecido',
+                          track_duration_ms: song.track_duration_ms || 0
+                        })}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '4px' }}
+                        title={userFavorites.some(f => f.spotify_track_id === song.spotify_track_id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                      >
+                        {userFavorites.some(f => f.spotify_track_id === song.spotify_track_id) ? '❤️' : '🤍'}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -255,13 +311,28 @@ export default function DashboardPage() {
                   <div style={{ fontWeight: 700 }}>{track.name}</div>
                   <div style={{ color: '#9fb0c3', fontSize: '13px' }}>{track.artist || track.artists?.join(', ') || 'Artista desconhecido'}</div>
                 </div>
-                <button
-                  onClick={() => handleAddSong(track)}
-                  disabled={addingTrack === track.id}
-                  style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer', opacity: addingTrack === track.id ? 0.6 : 1, flexShrink: 0 }}
-                >
-                  {addingTrack === track.id ? 'Adicionando...' : '+ Adicionar'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFavoriteTrack({
+                      spotify_track_id: track.id,
+                      track_name: track.name,
+                      artist_name: track.artist || track.artists?.join(', ') || 'Artista desconhecido',
+                      track_duration_ms: track.duration_ms || 0
+                    })}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '4px 6px' }}
+                    title={userFavorites.some(f => f.spotify_track_id === track.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  >
+                    {userFavorites.some(f => f.spotify_track_id === track.id) ? '❤️' : '🤍'}
+                  </button>
+                  <button
+                    onClick={() => handleAddSong(track)}
+                    disabled={addingTrack === track.id}
+                    style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: '#1db954', color: 'black', fontWeight: 700, cursor: 'pointer', opacity: addingTrack === track.id ? 0.6 : 1, flexShrink: 0 }}
+                  >
+                    {addingTrack === track.id ? 'Adicionando...' : '+ Adicionar'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

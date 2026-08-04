@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { usePlaylistStore } from '../stores/playlistStore';
 import { getPlaylists, createPlaylist } from '../services/api';
 import { useToast } from './Toast';
+import FavoritesModal from './FavoritesModal';
 import type { Playlist } from '../types';
 
 interface LayoutProps {
@@ -19,6 +20,7 @@ export default function Layout({ children }: LayoutProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -107,6 +109,17 @@ export default function Layout({ children }: LayoutProps) {
 
       <div className="layout-container">
         <aside className={`layout-sidebar ${mobileSidebarOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowFavoritesModal(true);
+              setMobileSidebarOpen(false);
+            }}
+            style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ec4899', background: '#1d0d21', color: '#ec4899', fontWeight: 700, cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' }}
+          >
+            ❤️ Meus Favoritos
+          </button>
+
           <h2 style={{ marginTop: 0, fontSize: '16px', color: '#63d3ff', letterSpacing: '0.05em' }}>Minhas Playlists</h2>
           {user?.role && ['admin', 'moderator'].includes(user.role) && (
             <button
@@ -141,6 +154,8 @@ export default function Layout({ children }: LayoutProps) {
               </button>
             ))}
           </div>
+
+          <FavoritesModal isOpen={showFavoritesModal} onClose={() => setShowFavoritesModal(false)} />
 
           {showCreateModal && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 150 }}>

@@ -121,6 +121,10 @@ export async function initDatabase(): Promise<Database> {
     ALTER TABLE invites ADD COLUMN uses INTEGER DEFAULT 0
   `).catch(() => { });
 
+  await db.exec(`
+    ALTER TABLE invites ADD COLUMN description TEXT
+  `).catch(() => { });
+
   // Musicas na Playlist
   await db.exec(`
     CREATE TABLE IF NOT EXISTS playlist_songs (
@@ -148,11 +152,16 @@ export async function initDatabase(): Promise<Database> {
       track_name TEXT NOT NULL,
       artist_name TEXT NOT NULL,
       track_duration_ms INTEGER,
+      spotify_url TEXT,
       added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, spotify_track_id),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  await db.exec(`
+    ALTER TABLE user_favorites ADD COLUMN spotify_url TEXT
+  `).catch(() => { });
 
   // Historico de eventos para analytics
   await db.exec(`
